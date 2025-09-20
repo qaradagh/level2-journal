@@ -42,7 +42,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     // --- EVENT LISTENERS ---
-    // CHANGED: Added saving date to localStorage on change
     tradeDateEl.addEventListener('change', () => {
         updateDayOfWeek();
         localStorage.setItem('lastTradeDate', tradeDateEl.value);
@@ -124,7 +123,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- FUNCTIONS ---
-    // NEW: Function to load the last used date from localStorage
     function loadLastDate() {
         const lastDate = localStorage.getItem('lastTradeDate');
         if (lastDate) {
@@ -211,8 +209,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.preview-box').forEach(box => clearImage(box));
         dayOfWeekEl.value = '';
         document.querySelector('.recovery-group').style.display = 'none';
-
-        // Keep the date field populated
         loadLastDate();
     }
 
@@ -455,6 +451,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const lightboxContent = document.getElementById('lightbox-content');
                 const prevButton = document.getElementById('lightbox-prev');
                 const nextButton = document.getElementById('lightbox-next');
+                const closeButton = document.querySelector('.lightbox-close');
                 const images = document.querySelectorAll('.lightbox-image');
                 let currentIndex = 0;
 
@@ -468,7 +465,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 images.forEach((img, index) => img.addEventListener('click', () => showImage(index)));
-                document.querySelector('.close-button').addEventListener('click', () => lightbox.classList.remove('active'));
+                // BUG FIX: Changed '.close-button' to the correct '.lightbox-close'
+                closeButton.addEventListener('click', () => lightbox.classList.remove('active'));
                 prevButton.addEventListener('click', () => showImage(currentIndex - 1));
                 nextButton.addEventListener('click', () => showImage(currentIndex + 1));
                 
@@ -503,6 +501,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // --- INITIALIZATION ---
-    loadLastDate(); // Load the last used date on startup
+    loadLastDate();
     initializeSession();
 });
