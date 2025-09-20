@@ -81,13 +81,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.querySelectorAll('.preview-box').forEach(box => {
+        // NEW: Improved logic for hover and paste
+        box.addEventListener('mouseover', () => box.focus());
+        box.addEventListener('mouseout', () => box.blur());
+
         box.addEventListener('click', (e) => { 
-            if (e.target.classList.contains('preview-box') || e.target.tagName === 'SPAN') {
+            // Only trigger file input if the box is empty and we are not clearing the image
+            if (!box.classList.contains('has-image') && (e.target.classList.contains('preview-box') || e.target.tagName === 'SPAN')) {
                 document.getElementById(box.dataset.uploadTarget).click();
             }
         });
-        box.addEventListener('mouseover', () => box.focus());
-        box.addEventListener('mouseout', () => box.blur());
+
         box.addEventListener('dragover', (e) => { e.preventDefault(); box.style.borderColor = 'var(--primary-color)'; });
         box.addEventListener('dragleave', () => { box.style.borderColor = 'var(--border-color)'; });
         box.addEventListener('drop', (e) => {
@@ -158,10 +162,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function addTrade() {
         if (state.equityCurve.length === 0) { alert('Please start a session first.'); return; }
         const currentBalance = state.equityCurve[state.equityCurve.length - 1];
+        
+        // CHANGED: "penetrationPips" is now "breakoutPips"
         const trade = {
             id: state.trades.length + 1, date: document.getElementById('tradeDate').value,
             day: new Date(document.getElementById('tradeDate').value).toLocaleString('en-US', { weekday: 'long', timeZone: 'UTC' }),
-            type: document.getElementById('tradeType').value, penetrationPips: document.getElementById('penetrationPips').value,
+            type: document.getElementById('tradeType').value, 
+            breakoutPips: document.getElementById('breakoutPips').value,
             stopLossPips: document.getElementById('stopLossPips').value, initialOutcome: document.getElementById('outcome').value,
             recoveryOutcome: document.getElementById('recoveryOutcome').value, notes: document.getElementById('tradeNotes').value,
             beforeImage: document.getElementById('before-preview').dataset.base64 || null,
@@ -210,9 +217,10 @@ document.addEventListener('DOMContentLoaded', () => {
             row.dataset.tradeId = trade.id;
             const outcomeClass = trade.plAmount > 0 ? 'outcome-win' : 'outcome-loss';
             row.classList.add(outcomeClass);
+            // CHANGED: "penetrationPips" is now "breakoutPips"
             row.innerHTML = `
                 <td>${trade.id}</td><td>${trade.date}</td><td>${trade.day}</td>
-                <td>${trade.type.charAt(0).toUpperCase() + trade.type.slice(1)}</td><td>${trade.penetrationPips}</td>
+                <td>${trade.type.charAt(0).toUpperCase() + trade.type.slice(1)}</td><td>${trade.breakoutPips}</td>
                 <td class="${outcomeClass}">${trade.finalOutcome}</td><td class="${outcomeClass}">${trade.plAmount.toFixed(2)}</td>
                 <td>${trade.newBalance.toFixed(2)}</td>
                 <td>${trade.beforeImage && trade.afterImage ? 'Yes' : 'No'}</td><td>${trade.notes || 'N/A'}</td>`;
@@ -303,10 +311,11 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function exportToCSV() {
         if(state.trades.length === 0) { alert("No trades to export."); return; }
-        const headers = ["ID", "Date", "Day", "Type", "Penetration (pips)", "Outcome", "P/L ($)", "New Balance", "Notes"];
+        // CHANGED: "Penetration" is now "Breakout"
+        const headers = ["ID", "Date", "Day", "Type", "Breakout (pips)", "Outcome", "P/L ($)", "New Balance", "Notes"];
         let csvContent = headers.join(",") + "\r\n";
         state.trades.forEach(trade => {
-            const row = [trade.id, trade.date, trade.day, trade.type, trade.penetrationPips, trade.finalOutcome, trade.plAmount.toFixed(2), trade.newBalance.toFixed(2), `"${(trade.notes || '').replace(/"/g, '""')}"`];
+            const row = [trade.id, trade.date, trade.day, trade.type, trade.breakoutPips, trade.finalOutcome, trade.plAmount.toFixed(2), trade.newBalance.toFixed(2), `"${(trade.notes || '').replace(/"/g, '""')}"`];
             csvContent += row.join(",") + "\r\n";
         });
         const link = document.createElement("a");
@@ -315,14 +324,103 @@ document.addEventListener('DOMContentLoaded', () => {
         link.click();
     }
 
+    // NEW: Completely overhauled function for visual report with lightbox
     function generateVisualReport() {
         if (state.trades.length === 0) { alert("No trades to generate a report for."); return; }
-        let reportHTML = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Level 2 Journal - Visual Report</title><style>body{font-family:sans-serif;background-color:#222831;color:#EEEEEE;padding:20px}h1{text-align:center;border-bottom:2px solid #393E46;padding-bottom:10px;margin-bottom:40px}.trade-card{background-color:#393E46;border:1px solid #4a5058;border-radius:8px;margin-bottom:30px;padding:20px}.trade-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}.trade-header h2{margin:0}.outcome-win{color:#28a745}.outcome-loss{color:#dc3545}.image-gallery{display:flex;gap:20px}.image-container{flex:1;text-align:center}.image-container img{max-width:100%;border-radius:4px;border:1px solid #4a5058}.image-container h3{margin-bottom:10px;color:#b0b0b0}@media (max-width:800px){.image-gallery{flex-direction:column}}</style></head><body><h1>Visual Trade Report</h1>`;
+
+        let reportHTML = `
+        <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Level 2 Journal - Visual Report</title>
+        <style>
+            :root { --bg-color: #222831; --surface-color: #393E46; --text-color: #EEEEEE; --green: #28a745; --red: #dc3545; --border-color: #4a5058; }
+            body { font-family: sans-serif; background-color: var(--bg-color); color: var(--text-color); padding: 20px; margin: 0; }
+            h1 { text-align: center; border-bottom: 2px solid var(--surface-color); padding-bottom: 10px; margin-bottom: 40px; }
+            .trade-card { background-color: var(--surface-color); border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 30px; padding: 20px; }
+            .trade-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+            .trade-header h2 { margin: 0; font-size: 1.5rem; }
+            .trade-header-details { display: flex; align-items: center; gap: 20px; }
+            .trade-header-details .pips-info { font-size: 0.9rem; color: #b0b0b0; background-color: #222831; padding: 5px 10px; border-radius: 4px; }
+            .trade-header-details .outcome { font-size: 1.2rem; font-weight: bold; }
+            .outcome-win { color: var(--green); }
+            .outcome-loss { color: var(--red); }
+            .image-gallery { display: flex; flex-direction: column; gap: 20px; }
+            .image-container { text-align: center; }
+            .image-container img { max-width: 100%; border-radius: 4px; border: 1px solid var(--border-color); cursor: pointer; transition: transform 0.2s; }
+            .image-container img:hover { transform: scale(1.01); }
+            .image-container h3 { margin-bottom: 10px; color: #b0b0b0; }
+            #lightbox { display: none; position: fixed; z-index: 1000; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.9); justify-content: center; align-items: center; }
+            #lightbox.active { display: flex; }
+            #lightbox img { max-width: 90%; max-height: 80%; }
+            .lightbox-close, .lightbox-next, .lightbox-prev { position: absolute; color: white; font-size: 3rem; font-weight: bold; cursor: pointer; user-select: none; }
+            .lightbox-close { top: 20px; right: 40px; }
+            .lightbox-next { right: 40px; }
+            .lightbox-prev { left: 40px; }
+        </style>
+        </head><body><h1>Visual Trade Report</h1>`;
+
         state.trades.forEach(trade => {
             const outcomeClass = trade.plAmount > 0 ? 'outcome-win' : 'outcome-loss';
-            reportHTML += `<div class="trade-card"><div class="trade-header"><h2>Trade #${trade.id} (${trade.date})</h2><h2 class="${outcomeClass}">${trade.finalOutcome} (${(trade.plAmount / (state.equityCurve[trade.id - 1] || state.initialBalance) * 100).toFixed(2)}%)</h2></div><div class="image-gallery"><div class="image-container"><h3>Before</h3><img src="${trade.beforeImage || ''}" alt="Before Chart"></div><div class="image-container"><h3>After</h3><img src="${trade.afterImage || ''}" alt="After Chart"></div></div></div>`;
+            const initialBalanceForTrade = state.trades.length > 1 && trade.id > 1 ? state.equityCurve[trade.id - 1] : state.initialBalance;
+            const percentagePL = (trade.plAmount / initialBalanceForTrade) * 100;
+
+            reportHTML += `
+            <div class="trade-card">
+                <div class="trade-header">
+                    <h2>Trade #${trade.id} (${trade.date})</h2>
+                    <div class="trade-header-details">
+                        <span class="pips-info">SL: ${trade.stopLossPips}p | Breakout: ${trade.breakoutPips}p</span>
+                        <span class="outcome ${outcomeClass}">${trade.finalOutcome} (${percentagePL.toFixed(2)}%)</span>
+                    </div>
+                </div>
+                <div class="image-gallery">
+                    <div class="image-container">
+                        <h3>Before</h3>
+                        <img src="${trade.beforeImage || ''}" alt="Before Chart" class="lightbox-image">
+                    </div>
+                    <div class="image-container">
+                        <h3>After</h3>
+                        <img src="${trade.afterImage || ''}" alt="After Chart" class="lightbox-image">
+                    </div>
+                </div>
+            </div>`;
         });
-        reportHTML += `</body></html>`;
+        
+        reportHTML += `
+            <div id="lightbox">
+                <span class="lightbox-close">&times;</span>
+                <span class="lightbox-prev">&#10094;</span>
+                <span class="lightbox-next">&#10095;</span>
+                <img id="lightbox-content" src="">
+            </div>
+            <script>
+                const lightbox = document.getElementById('lightbox');
+                const lightboxContent = document.getElementById('lightbox-content');
+                const images = document.querySelectorAll('.lightbox-image');
+                let currentIndex = 0;
+
+                function showImage(index) {
+                    if (index < 0 || index >= images.length) return;
+                    currentIndex = index;
+                    lightboxContent.src = images[currentIndex].src;
+                    lightbox.classList.add('active');
+                }
+
+                images.forEach((img, index) => {
+                    img.addEventListener('click', () => showImage(index));
+                });
+
+                document.querySelector('.lightbox-close').addEventListener('click', () => lightbox.classList.remove('active'));
+                document.querySelector('.lightbox-prev').addEventListener('click', () => showImage(currentIndex - 1));
+                document.querySelector('.lightbox-next').addEventListener('click', () => showImage(currentIndex + 1));
+                
+                document.addEventListener('keydown', e => {
+                    if (!lightbox.classList.contains('active')) return;
+                    if (e.key === 'ArrowRight') showImage(currentIndex + 1);
+                    if (e.key === 'ArrowLeft') showImage(currentIndex - 1);
+                    if (e.key === 'Escape') lightbox.classList.remove('active');
+                });
+            <\/script>
+        </body></html>`;
+
         const reportWindow = window.open();
         reportWindow.document.write(reportHTML);
         reportWindow.document.close();
