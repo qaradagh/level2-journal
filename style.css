@@ -1,6 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap');
 
-/* CHANGED: Color variables refactored for theme switching */
 :root {
     --bg-color: #222831;
     --surface-color: #393E46;
@@ -17,7 +16,6 @@
     --calendar-picker-filter: invert(0.8);
 }
 
-/* NEW: Light theme color variables */
 body.light-mode {
     --bg-color: #f0f2f5;
     --surface-color: #ffffff;
@@ -48,7 +46,6 @@ header { text-align: center; margin-bottom: 2rem; position: relative; }
 header h1 { font-size: 2.5rem; font-weight: 700; margin-bottom: 0.5rem; }
 header p { color: var(--text-secondary-color); font-size: 1.1rem; }
 
-/* NEW: Theme toggle button styles */
 #theme-toggle {
     position: absolute;
     top: 0;
@@ -64,6 +61,8 @@ header p { color: var(--text-secondary-color); font-size: 1.1rem; }
     cursor: pointer;
     color: var(--text-color);
     transition: background-color 0.3s, border-color 0.3s;
+    /* CHANGED: Adjusted font-size for better emoji display */
+    font-size: 1.25rem; 
 }
 #theme-toggle:hover {
     border-color: var(--primary-color);
@@ -71,7 +70,6 @@ header p { color: var(--text-secondary-color); font-size: 1.1rem; }
 #theme-toggle .moon-icon { display: none; }
 body.light-mode #theme-toggle .sun-icon { display: none; }
 body.light-mode #theme-toggle .moon-icon { display: block; }
-
 
 .card {
     background-color: var(--surface-color);
@@ -93,7 +91,6 @@ body.light-mode #theme-toggle .moon-icon { display: block; }
     font-family: 'Lato', sans-serif;
     transition: background-color 0.3s, color 0.3s, border-color 0.3s;
 }
-/* CHANGED: Custom select arrow for better spacing */
 .form-group select {
     -webkit-appearance: none;
     -moz-appearance: none;

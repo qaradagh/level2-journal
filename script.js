@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let state = { initialBalance: 0, riskPercentage: 0, trades: [], equityCurve: [] };
     
     // --- SELECTORS ---
-    const themeToggleBtn = document.getElementById('theme-toggle'); // NEW
+    const themeToggleBtn = document.getElementById('theme-toggle');
     const initialBalanceEl = document.getElementById('initialBalance');
     const riskPercentageEl = document.getElementById('riskPercentage');
     const startSessionBtn = document.getElementById('startSessionBtn');
@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     // --- EVENT LISTENERS ---
-    themeToggleBtn.addEventListener('click', toggleTheme); // NEW
+    themeToggleBtn.addEventListener('click', toggleTheme);
     tradeDateEl.addEventListener('change', () => {
         updateDayOfWeek();
         localStorage.setItem('lastTradeDate', tradeDateEl.value);
@@ -145,7 +145,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- FUNCTIONS ---
-    // NEW: Theme switching logic
     function applyTheme(theme) {
         if (theme === 'light') {
             document.body.classList.add('light-mode');
@@ -281,7 +280,6 @@ document.addEventListener('DOMContentLoaded', () => {
         updateChart();
     }
     
-    // CHANGED: Added trade.stopLossPips to the table row
     function renderTradeLog() {
         tradeLogBody.innerHTML = '';
         state.trades.forEach(trade => {
@@ -410,10 +408,10 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.readAsText(file);
     }
     
-    // CHANGED: Added Stop Loss to CSV export
     function exportToCSV() {
         if(state.trades.length === 0) { showToast("No trades to export.", 'error'); return; }
-        const headers = ["ID", "Date", "Day", "Type", "Stop Loss (pips)", "Breakout (pips)", "Outcome", "P/L ($)", "New Balance", "Notes"];
+        // CHANGED: Renamed header in CSV export
+        const headers = ["ID", "Date", "Day", "Type", "Stop Loss", "Breakout (pips)", "Outcome", "P/L ($)", "New Balance", "Notes"];
         let csvContent = headers.join(",") + "\r\n";
         state.trades.forEach(trade => {
             const row = [trade.id, trade.date, trade.day, trade.type, trade.stopLossPips, trade.breakoutPips, trade.finalOutcome, trade.plAmount.toFixed(2), trade.newBalance.toFixed(2), `"${(trade.notes || '').replace(/"/g, '""')}"`];
