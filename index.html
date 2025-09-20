@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Level 2 Journal - Backtesting Platform</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Level 2 Journal</h1>
+            <p>Your Personal Backtesting Dashboard</p>
+        </header>
+
+        <main>
+            <div class="setup-section card">
+                <h2>Account Setup</h2>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="initialBalance">Initial Balance ($)</label>
+                        <input type="number" id="initialBalance" value="100000">
+                    </div>
+                    <div class="form-group">
+                        <label for="riskPercentage">Risk per Trade (%)</label>
+                        <input type="number" id="riskPercentage" value="1" step="0.1">
+                    </div>
+                </div>
+                <button id="startSessionBtn" class="btn btn-large">Start / Reset Session</button>
+            </div>
+
+            <div class="entry-section card">
+                <h2>New Trade Entry</h2>
+                <form id="tradeForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="tradeDate">Date</label>
+                            <input type="date" id="tradeDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="dayOfWeek">Day</label>
+                            <input type="text" id="dayOfWeek" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="tradeType">Trade Type</label>
+                            <select id="tradeType" required><option value="buy">Low Hunt (Buy)</option><option value="sell">High Hunt (Sell)</option></select>
+                        </div>
+                         <div class="form-group">
+                            <label for="stopLossPips">Stop Loss (pips)</label>
+                            <input type="number" id="stopLossPips" value="12" step="1" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="penetrationPips">Penetration (pips)</label>
+                            <input type="number" id="penetrationPips" value="4" step="1">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group file-upload">
+                            <label>Before Chart</label>
+                            <input type="file" class="image-upload" id="before-upload" accept="image/*" style="display: none;">
+                            <div class="preview-box" id="before-preview" data-upload-target="before-upload" tabindex="0">
+                                <span>Click, paste, or drop image</span>
+                                <button type="button" class="clear-image-btn" title="Clear Image">&times;</button>
+                            </div>
+                        </div>
+                        <div class="form-group file-upload">
+                            <label>After Chart</label>
+                            <input type="file" class="image-upload" id="after-upload" accept="image/*" style="display: none;">
+                            <div class="preview-box" id="after-preview" data-upload-target="after-upload" tabindex="0">
+                                <span>Click, paste, or drop image</span>
+                                <button type="button" class="clear-image-btn" title="Clear Image">&times;</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-row trade-outcome">
+                         <div class="form-group">
+                            <label for="outcome">Initial Trade Outcome</label>
+                            <select id="outcome" required><option value="win">Win (TP)</option><option value="loss">Loss (SL)</option></select>
+                        </div>
+                        <div class="form-group recovery-group" style="display: none;">
+                            <label for="recoveryOutcome">Recovery Trade Outcome</label>
+                             <select id="recoveryOutcome"><option value="win">Recovery Win (TP)</option><option value="loss">Recovery Loss (SL)</option></select>
+                        </div>
+                    </div>
+                    <div class="form-group notes-group">
+                         <label for="tradeNotes">Notes (Optional)</label>
+                         <div class="notes-input-wrapper">
+                             <textarea id="tradeNotes" rows="2" placeholder="Any observations..."></textarea>
+                             <button type="submit" class="btn btn-icon" title="Add Trade"><span>Add Trade</span></button>
+                         </div>
+                    </div>
+                </form>
+            </div>
+
+            <div class="dashboard-section">
+                 <div class="chart-container card">
+                    <h2>Equity Curve</h2>
+                    <canvas id="equityChart"></canvas>
+                </div>
+                <div class="stats-container card">
+                    <h2>Performance Metrics</h2>
+                    <div id="metrics">
+                        <p>Total Trades: <span id="totalTrades">0</span></p>
+                        <p>Win Rate: <span id="winRate">N/A</span></p>
+                        <p>Profit Factor: <span id="profitFactor">N/A</span></p>
+                        <p>Current Balance: <span id="currentBalance">$0.00</span></p>
+                    </div>
+                    <div id="daily-metrics" class="card-subsection">
+                        <h3>Win Rate by Day</h3>
+                        <div id="dailyWinRateContainer"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="log-section card">
+                <h2>Trade Log</h2>
+                <div class="table-wrapper">
+                    <table id="tradeLog">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Date</th>
+                                <th>Day</th>
+                                <th>Type</th>
+                                <th>Penetration</th>
+                                <th>Outcome</th>
+                                <th>P/L ($)</th>
+                                <th>Balance ($)</th>
+                                <th>Charts</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <div class="data-buttons">
+                 <button id="exportCsvBtn" class="btn-secondary">Export to CSV</button>
+                 <button id="saveSessionBtn" class="btn-secondary">Save Session</button>
+                 <button id="generateReportBtn" class="btn-secondary">Generate Visual Report</button>
+                 <label for="loadSessionInput" class="btn-secondary">Load Session</label>
+                 <input type="file" id="loadSessionInput" style="display: none;" accept=".json">
+            </div>
+            <p>Built for traders, by Masiha with ❤️.</p>
+        </footer>
+    </div>
+    
+    <div id="imageModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-trade-title">Trade Details</h2>
+                <span class="close-button">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="modal-image-container">
+                    <h3>Before</h3>
+                    <img id="modal-before-img" src="" alt="Before Chart">
+                </div>
+                <div class="modal-image-container">
+                    <h3>After</h3>
+                    <img id="modal-after-img" src="" alt="After Chart">
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
