@@ -11,12 +11,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const dayOfWeekEl = document.getElementById('dayOfWeek');
     const outcomeEl = document.getElementById('outcome');
     const recoveryGroupEl = document.querySelector('.recovery-group');
+    const stopLossEl = document.getElementById('stopLossPips');
+    const penInputEl = document.getElementById('penetrationPips');
     const tradeLogBody = document.querySelector('#tradeLog tbody');
-    const totalTradesEl = document.getElementById('totalTrades');
-    const winRateEl = document.getElementById('winRate');
     const profitFactorEl = document.getElementById('profitFactor');
-    const currentBalanceEl = document.getElementById('currentBalance');
-    const dailyWinRateContainerEl = document.getElementById('dailyWinRateContainer');
     const saveSessionBtn = document.getElementById('saveSessionBtn');
     const loadSessionInput = document.getElementById('loadSessionInput');
     const exportCsvBtn = document.getElementById('exportCsvBtn');
@@ -40,18 +38,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     // --- EVENT LISTENERS ---
-    tradeDateEl.addEventListener('change', updateDayOfWeek);
+    stopLossEl.addEventListener('input', updatePenetrationInput);
+    stopLossEl.addEventListener('blur', roundStopLoss);
+    tradeDateEl.addEventListener('change', () => {
+        const date = new Date(tradeDateEl.value);
+        const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' });
+        document.getElementById('dayOfWeek').innerHTML = dayOfWeek; // Changed to innerHTML
+    });
     outcomeEl.addEventListener('change', () => { recoveryGroupEl.style.display = outcomeEl.value === 'loss' ? 'block' : 'none'; });
     startSessionBtn.addEventListener('click', () => {
-        if (state.trades.length > 0) {
-            if (confirm('Are you sure you want to reset the session? All trade data will be lost.')) {
-                initializeSession();
-                alert('Session has been reset.');
-            }
-        } else {
-            initializeSession();
-            alert('New session started!');
-        }
+        if (state.trades.length > 0 && !confirm('Are you sure? This will clear all trade data.')) return;
+        initializeSession();
     });
     tradeForm.addEventListener('submit', (e) => { e.preventDefault(); addTrade(); });
     saveSessionBtn.addEventListener('click', saveSession);
@@ -86,46 +83,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById(box.dataset.uploadTarget).click();
             }
         });
-        box.addEventListener('mouseover', () => box.focus());
-        box.addEventListener('mouseout', () => box.blur());
-        box.addEventListener('dragover', (e) => { e.preventDefault(); box.style.borderColor = 'var(--primary-color)'; });
-        box.addEventListener('dragleave', () => { box.style.borderColor = 'var(--border-color)'; });
-        box.addEventListener('drop', (e) => {
-            e.preventDefault(); box.style.borderColor = 'var(--border-color)';
-            const file = e.dataTransfer.files[0];
-            if (file) handleFile(file, box);
-        });
-        box.addEventListener('paste', (e) => {
-            e.preventDefault();
-            const clipboardData = e.clipboardData || window.clipboardData;
-            const items = clipboardData.items;
-            for (let i = 0; i < items.length; i++) {
-                if (items[i].type.indexOf('image') !== -1) {
-                    const file = items[i].getAsFile();
-                    handleFile(file, box);
-                    break;
-                }
-            }
-        });
-    });
-
-    document.querySelectorAll('.image-upload').forEach(input => {
-        input.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            const previewBox = document.querySelector(`[data-upload-target="${e.target.id}"]`);
-            if (file && previewBox) handleFile(file, previewBox);
-        });
     });
 
     // --- FUNCTIONS ---
-    function updateDayOfWeek() {
-        if (!tradeDateEl.value) {
-            dayOfWeekEl.value = '';
-            return;
+
+    function roundStopLoss() {
+        let slValue = parseInt(stopLossEl.value, 10);
+        if (isNaN(slValue) || slValue <= 0) return;
+
+        const remainder = slValue % 3;
+        if (remainder !== 0) {
+            slValue = slValue + (3 - remainder);
+            stopLossEl.value = slValue;
         }
-        const date = new Date(tradeDateEl.value);
-        const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
-        dayOfWeekEl.value = dayOfWeek;
+        updatePenetrationInput();
+    }
+    
+    function updatePenetrationInput() {
+        const slValue = parseFloat(stopLossEl.value) || 0;
+        document.getElementById('penetrationPips').value = Math.round(slValue / 3);
     }
 
     function clearImage(previewBox) {
@@ -160,7 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const currentBalance = state.equityCurve[state.equityCurve.length - 1];
         const trade = {
             id: state.trades.length + 1, date: document.getElementById('tradeDate').value,
-            day: new Date(document.getElementById('tradeDate').value).toLocaleString('en-US', { weekday: 'long', timeZone: 'UTC' }),
+            day: document.getElementById('dayOfWeek').innerHTML,
             type: document.getElementById('tradeType').value, penetrationPips: document.getElementById('penetrationPips').value,
             stopLossPips: document.getElementById('stopLossPips').value, initialOutcome: document.getElementById('outcome').value,
             recoveryOutcome: document.getElementById('recoveryOutcome').value, notes: document.getElementById('tradeNotes').value,
@@ -192,14 +168,14 @@ document.addEventListener('DOMContentLoaded', () => {
         updateUI();
         tradeForm.reset();
         document.querySelectorAll('.preview-box').forEach(box => clearImage(box));
-        dayOfWeekEl.value = '';
+        document.getElementById('dayOfWeek').innerHTML = '';
         document.querySelector('.recovery-group').style.display = 'none';
+        updatePenetrationInput();
     }
 
     function updateUI() {
         renderTradeLog();
         calculateMetrics();
-        renderDailyWinRates();
         updateChart();
     }
     
@@ -222,47 +198,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function calculateMetrics() {
         const numTrades = state.trades.length;
-        const safeInitialBalance = state.initialBalance || 0;
-        
         if (numTrades === 0) {
-            totalTradesEl.textContent = '0';
-            winRateEl.textContent = 'N/A';
             profitFactorEl.textContent = 'N/A';
-            currentBalanceEl.textContent = safeInitialBalance.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
             return;
         }
 
-        let wins = 0; let totalProfit = 0; let totalLoss = 0;
+        let totalProfit = 0; let totalLoss = 0;
         state.trades.forEach(trade => {
-            if (trade.plAmount > 0) { wins++; totalProfit += trade.plAmount; } 
+            if (trade.plAmount > 0) { totalProfit += trade.plAmount; } 
             else { totalLoss += trade.plAmount; }
         });
         
-        totalTradesEl.textContent = numTrades;
-        winRateEl.textContent = `${((wins / numTrades) * 100).toFixed(2)}%`;
         profitFactorEl.textContent = totalLoss !== 0 ? Math.abs(totalProfit / totalLoss).toFixed(2) : 'Infinity';
-        currentBalanceEl.textContent = state.equityCurve[state.equityCurve.length - 1].toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-    }
-
-    function renderDailyWinRates() {
-        dailyWinRateContainerEl.innerHTML = '';
-        const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-        const dailyStats = daysOfWeek.reduce((acc, day) => ({ ...acc, [day]: { wins: 0, total: 0 } }), {});
-        state.trades.forEach(trade => {
-            if (dailyStats[trade.day]) { 
-                dailyStats[trade.day].total++; 
-                if (trade.plAmount > 0) dailyStats[trade.day].wins++; 
-            }
-        });
-        daysOfWeek.forEach(day => {
-            const stats = dailyStats[day];
-            const winRate = stats.total > 0 ? (stats.wins / stats.total) * 100 : 0;
-            const rateColor = winRate >= 50 ? 'var(--green)' : 'var(--red)';
-            const dayEl = document.createElement('div');
-            dayEl.classList.add('day-stat');
-            dayEl.innerHTML = `<div class="day-name">${day}</div><div class="day-rate" style="color: ${stats.total > 0 ? rateColor : 'var(--text-secondary-color)'}">${stats.total > 0 ? winRate.toFixed(1) + '%' : 'N/A'}</div><div class="day-count" style="font-size: 0.8em; color: var(--text-secondary-color);">${stats.wins}/${stats.total}</div>`;
-            dailyWinRateContainerEl.appendChild(dayEl);
-        });
     }
 
     function updateChart() {
