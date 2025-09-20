@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let state = { initialBalance: 0, riskPercentage: 0, trades: [], equityCurve: [] };
     
     // --- SELECTORS ---
+    const themeToggleBtn = document.getElementById('theme-toggle'); // NEW
     const initialBalanceEl = document.getElementById('initialBalance');
     const riskPercentageEl = document.getElementById('riskPercentage');
     const startSessionBtn = document.getElementById('startSessionBtn');
@@ -27,6 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalBeforeImg = document.getElementById('modal-before-img');
     const modalAfterImg = document.getElementById('modal-after-img');
     const closeModalBtn = document.querySelector('.close-button');
+    const modalTradeDetailsEl = document.getElementById('modal-trade-details');
     const generateReportBtn = document.getElementById('generateReportBtn');
     const entrySection = document.querySelector('.entry-section');
 
@@ -42,6 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     // --- EVENT LISTENERS ---
+    themeToggleBtn.addEventListener('click', toggleTheme); // NEW
     tradeDateEl.addEventListener('change', () => {
         updateDayOfWeek();
         localStorage.setItem('lastTradeDate', tradeDateEl.value);
@@ -51,11 +54,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.trades.length > 0) {
             if (confirm('Are you sure you want to reset the session? All trade data will be lost.')) {
                 initializeSession();
-                alert('Session has been reset.');
+                showToast('Session has been reset.', 'info');
             }
         } else {
             initializeSession();
-            alert('New session started!');
+            showToast('New session started!');
         }
     });
     tradeForm.addEventListener('submit', (e) => { e.preventDefault(); addTrade(); });
@@ -72,6 +75,25 @@ document.addEventListener('DOMContentLoaded', () => {
             modalTradeTitle.textContent = `Trade #${trade.id} - ${trade.date}`;
             modalBeforeImg.src = trade.beforeImage;
             modalAfterImg.src = trade.afterImage;
+
+            const initialBalanceForTrade = trade.id > 1 ? state.equityCurve[trade.id - 1] : state.initialBalance;
+            const percentagePL = (trade.plAmount / initialBalanceForTrade) * 100;
+            const outcomeClass = trade.plAmount > 0 ? 'outcome-win' : 'outcome-loss';
+
+            modalTradeDetailsEl.innerHTML = `
+                <div class="footer-stat">
+                    <span class="label">Outcome</span>
+                    <span class="value ${outcomeClass}">${trade.finalOutcome} (${percentagePL.toFixed(2)}%)</span>
+                </div>
+                <div class="footer-stat">
+                    <span class="label">Stop Loss</span>
+                    <span class="value">${trade.stopLossPips}p</span>
+                </div>
+                <div class="footer-stat">
+                    <span class="label">Breakout</span>
+                    <span class="value">${trade.breakoutPips}p</span>
+                </div>
+            `;
             imageModal.style.display = 'flex';
         }
     });
@@ -123,6 +145,45 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- FUNCTIONS ---
+    // NEW: Theme switching logic
+    function applyTheme(theme) {
+        if (theme === 'light') {
+            document.body.classList.add('light-mode');
+        } else {
+            document.body.classList.remove('light-mode');
+        }
+    }
+
+    function toggleTheme() {
+        const currentTheme = document.body.classList.contains('light-mode') ? 'light' : 'dark';
+        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+        localStorage.setItem('theme', newTheme);
+        applyTheme(newTheme);
+    }
+
+    function loadTheme() {
+        const savedTheme = localStorage.getItem('theme');
+        const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (savedTheme) {
+            applyTheme(savedTheme);
+        } else if (systemPrefersDark) {
+            applyTheme('dark');
+        } else {
+            applyTheme('light');
+        }
+    }
+
+    function showToast(message, type = 'success') {
+        const toastContainer = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        toastContainer.appendChild(toast);
+        setTimeout(() => {
+            toast.remove();
+        }, 4000);
+    }
+
     function loadLastDate() {
         const lastDate = localStorage.getItem('lastTradeDate');
         if (lastDate) {
@@ -169,7 +230,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function addTrade() {
-        if (state.equityCurve.length === 0) { alert('Please start a session first.'); return; }
+        if (state.equityCurve.length === 0) { showToast('Please start a session first.', 'error'); return; }
         const currentBalance = state.equityCurve[state.equityCurve.length - 1];
         
         const trade = {
@@ -210,6 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dayOfWeekEl.value = '';
         document.querySelector('.recovery-group').style.display = 'none';
         loadLastDate();
+        showToast('Trade added successfully!');
     }
 
     function updateUI() {
@@ -219,6 +281,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateChart();
     }
     
+    // CHANGED: Added trade.stopLossPips to the table row
     function renderTradeLog() {
         tradeLogBody.innerHTML = '';
         state.trades.forEach(trade => {
@@ -227,11 +290,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const outcomeClass = trade.plAmount > 0 ? 'outcome-win' : 'outcome-loss';
             row.classList.add(outcomeClass);
             row.innerHTML = `
-                <td>${trade.id}</td><td>${trade.date}</td><td>${trade.day}</td>
-                <td>${trade.type.charAt(0).toUpperCase() + trade.type.slice(1)}</td><td>${trade.breakoutPips}</td>
-                <td class="${outcomeClass}">${trade.finalOutcome}</td><td class="${outcomeClass}">${trade.plAmount.toFixed(2)}</td>
+                <td>${trade.id}</td>
+                <td>${trade.date}</td>
+                <td>${trade.day}</td>
+                <td>${trade.type.charAt(0).toUpperCase() + trade.type.slice(1)}</td>
+                <td>${trade.stopLossPips}</td>
+                <td>${trade.breakoutPips}</td>
+                <td class="${outcomeClass}">${trade.finalOutcome}</td>
+                <td class="${outcomeClass}">${trade.plAmount.toFixed(2)}</td>
                 <td>${trade.newBalance.toFixed(2)}</td>
-                <td>${trade.beforeImage && trade.afterImage ? 'Yes' : 'No'}</td><td>${trade.notes || 'N/A'}</td>`;
+                <td>${trade.beforeImage && trade.afterImage ? 'Yes' : 'No'}</td>
+                <td>${trade.notes || 'N/A'}</td>`;
             tradeLogBody.appendChild(row);
         });
     }
@@ -315,13 +384,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function saveSession() {
-        if(state.trades.length === 0) { alert("No trades to save."); return; }
+        if(state.trades.length === 0) { showToast("No trades to save.", 'error'); return; }
         const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         a.download = `level2-journal-session-${new Date().toISOString().slice(0, 10)}.json`;
         a.click();
         URL.revokeObjectURL(a.href);
+        showToast("Session saved successfully!");
     }
     
     function loadSession(event) {
@@ -334,18 +404,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 initialBalanceEl.value = state.initialBalance;
                 riskPercentageEl.value = state.riskPercentage;
                 updateUI();
-                alert('Session loaded successfully!');
-            } catch (error) { alert('Failed to load session file. It may be corrupted.'); }
+                showToast('Session loaded successfully!');
+            } catch (error) { showToast('Failed to load session file.', 'error'); }
         };
         reader.readAsText(file);
     }
     
+    // CHANGED: Added Stop Loss to CSV export
     function exportToCSV() {
-        if(state.trades.length === 0) { alert("No trades to export."); return; }
-        const headers = ["ID", "Date", "Day", "Type", "Breakout (pips)", "Outcome", "P/L ($)", "New Balance", "Notes"];
+        if(state.trades.length === 0) { showToast("No trades to export.", 'error'); return; }
+        const headers = ["ID", "Date", "Day", "Type", "Stop Loss (pips)", "Breakout (pips)", "Outcome", "P/L ($)", "New Balance", "Notes"];
         let csvContent = headers.join(",") + "\r\n";
         state.trades.forEach(trade => {
-            const row = [trade.id, trade.date, trade.day, trade.type, trade.breakoutPips, trade.finalOutcome, trade.plAmount.toFixed(2), trade.newBalance.toFixed(2), `"${(trade.notes || '').replace(/"/g, '""')}"`];
+            const row = [trade.id, trade.date, trade.day, trade.type, trade.stopLossPips, trade.breakoutPips, trade.finalOutcome, trade.plAmount.toFixed(2), trade.newBalance.toFixed(2), `"${(trade.notes || '').replace(/"/g, '""')}"`];
             csvContent += row.join(",") + "\r\n";
         });
         const link = document.createElement("a");
@@ -355,7 +426,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function generateVisualReport() {
-        if (state.trades.length === 0) { alert("No trades to generate a report for."); return; }
+        if (state.trades.length === 0) { showToast("No trades to generate a report for.", 'error'); return; }
 
         let reportHTML = `
         <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Level 2 Journal - Visual Report</title>
@@ -465,7 +536,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 images.forEach((img, index) => img.addEventListener('click', () => showImage(index)));
-                // BUG FIX: Changed '.close-button' to the correct '.lightbox-close'
                 closeButton.addEventListener('click', () => lightbox.classList.remove('active'));
                 prevButton.addEventListener('click', () => showImage(currentIndex - 1));
                 nextButton.addEventListener('click', () => showImage(currentIndex + 1));
@@ -501,6 +571,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // --- INITIALIZATION ---
+    loadTheme();
     loadLastDate();
     initializeSession();
 });

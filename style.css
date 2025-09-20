@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap');
 
+/* CHANGED: Color variables refactored for theme switching */
 :root {
     --bg-color: #222831;
     --surface-color: #393E46;
@@ -13,6 +14,22 @@
     --green-faint: rgba(40, 167, 69, 0.1);
     --red-faint: rgba(220, 53, 69, 0.1);
     --hover-color: #4f5864;
+    --calendar-picker-filter: invert(0.8);
+}
+
+/* NEW: Light theme color variables */
+body.light-mode {
+    --bg-color: #f0f2f5;
+    --surface-color: #ffffff;
+    --primary-color: #008f95;
+    --text-color: #1c1e21;
+    --text-secondary-color: #65676b;
+    --border-color: #dce1e4;
+    --shadow-color: rgba(0, 0, 0, 0.1);
+    --green-faint: rgba(40, 167, 69, 0.1);
+    --red-faint: rgba(220, 53, 69, 0.1);
+    --hover-color: #f2f2f2;
+    --calendar-picker-filter: invert(0.2);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -22,6 +39,7 @@ body {
     background-color: var(--bg-color);
     color: var(--text-color);
     line-height: 1.6;
+    transition: background-color 0.3s, color 0.3s;
 }
 
 .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
@@ -30,6 +48,31 @@ header { text-align: center; margin-bottom: 2rem; position: relative; }
 header h1 { font-size: 2.5rem; font-weight: 700; margin-bottom: 0.5rem; }
 header p { color: var(--text-secondary-color); font-size: 1.1rem; }
 
+/* NEW: Theme toggle button styles */
+#theme-toggle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    color: var(--text-color);
+    transition: background-color 0.3s, border-color 0.3s;
+}
+#theme-toggle:hover {
+    border-color: var(--primary-color);
+}
+#theme-toggle .moon-icon { display: none; }
+body.light-mode #theme-toggle .sun-icon { display: none; }
+body.light-mode #theme-toggle .moon-icon { display: block; }
+
+
 .card {
     background-color: var(--surface-color);
     border: 1px solid var(--border-color);
@@ -37,6 +80,7 @@ header p { color: var(--text-secondary-color); font-size: 1.1rem; }
     padding: 1.5rem 2rem;
     margin-bottom: 1.5rem;
     box-shadow: 0 2px 8px var(--shadow-color);
+    transition: background-color 0.3s, border-color 0.3s;
 }
 
 .form-row { display: flex; gap: 1rem; margin-bottom: 1.25rem; flex-wrap: wrap; align-items: flex-end; }
@@ -47,7 +91,23 @@ header p { color: var(--text-secondary-color); font-size: 1.1rem; }
     width: 100%; padding: 0.75rem; border-radius: 4px; border: 1px solid var(--border-color);
     background-color: var(--bg-color); color: var(--text-color); font-size: 1rem;
     font-family: 'Lato', sans-serif;
+    transition: background-color 0.3s, color 0.3s, border-color 0.3s;
 }
+/* CHANGED: Custom select arrow for better spacing */
+.form-group select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23EEEEEE'%3E%3Cpath d='M11.9997 13.1714L16.9495 8.22168L18.3637 9.63589L11.9997 15.9999L5.63574 9.63589L7.04996 8.22168L11.9997 13.1714Z'%3E%3C/path%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1.5em;
+    padding-right: 3rem;
+}
+body.light-mode .form-group select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%231c1e21'%3E%3Cpath d='M11.9997 13.1714L16.9495 8.22168L18.3637 9.63589L11.9997 15.9999L5.63574 9.63589L7.04996 8.22168L11.9997 13.1714Z'%3E%3C/path%3E%3C/svg%3E");
+}
+
 .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
     outline: none;
     border-color: var(--primary-color);
@@ -61,7 +121,7 @@ input#dayOfWeek[readonly] {
     cursor: default;
 }
 
-::-webkit-calendar-picker-indicator { filter: invert(0.8); }
+::-webkit-calendar-picker-indicator { filter: var(--calendar-picker-filter); }
 
 .btn, .btn-secondary {
     padding: 0.7rem 1.5rem; border: none; border-radius: 4px; font-size: 0.95rem; font-weight: 700;
@@ -73,7 +133,7 @@ input#dayOfWeek[readonly] {
 .btn { background-color: var(--primary-color); color: white; box-shadow: 0 2px 4px var(--shadow-color); }
 .btn:hover { filter: brightness(1.1); }
 .btn-secondary { background-color: transparent; color: var(--text-color); border: 1px solid var(--border-color); }
-.btn-secondary:hover { background-color: var(--surface-color); border-color: var(--primary-color); color: var(--primary-color); }
+.btn-secondary:hover { background-color: var(--hover-color); border-color: var(--primary-color); color: var(--primary-color); }
 .btn-icon { padding: 0; width: 130px; height: 52px; flex-shrink: 0; }
 .notes-group { width: 100%; }
 .notes-input-wrapper { display: flex; gap: 1rem; align-items: stretch; }
@@ -88,7 +148,7 @@ input#dayOfWeek[readonly] {
 .table-wrapper { overflow-x: auto; }
 #tradeLog { width: 100%; border-collapse: collapse; }
 #tradeLog th, #tradeLog td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
-#tradeLog th { background-color: var(--bg-color); font-weight: 700; }
+#tradeLog th { background-color: color-mix(in srgb, var(--surface-color) 50%, var(--bg-color)); font-weight: 700; }
 #tradeLog tbody tr { transition: background-color 0.2s; }
 #tradeLog tbody tr.outcome-win { background-color: var(--green-faint); }
 #tradeLog tbody tr.outcome-loss { background-color: var(--red-faint); }
@@ -120,22 +180,10 @@ footer { text-align: center; margin-top: 2rem; padding-top: 1.5rem; border-top: 
 .preview-box:hover, .preview-box:focus { border-color: var(--primary-color); }
 
 .clear-image-btn {
-    display: none;
-    position: absolute;
-    top: 5px;
-    right: 5px;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    border: none;
-    background-color: rgba(0, 0, 0, 0.5);
-    color: white;
-    font-size: 16px;
-    font-weight: bold;
-    line-height: 24px;
-    text-align: center;
-    cursor: pointer;
-    transition: background-color 0.2s;
+    display: none; position: absolute; top: 5px; right: 5px; width: 24px; height: 24px;
+    border-radius: 50%; border: none; background-color: rgba(0, 0, 0, 0.5);
+    color: white; font-size: 16px; font-weight: bold; line-height: 24px;
+    text-align: center; cursor: pointer; transition: background-color 0.2s;
 }
 .clear-image-btn:hover { background-color: rgba(220, 53, 69, 0.8); }
 .preview-box.has-image .clear-image-btn { display: block; }
@@ -166,7 +214,29 @@ footer { text-align: center; margin-top: 2rem; padding-top: 1.5rem; border-top: 
 .modal-image-container h3 { margin-bottom: 10px; color: var(--text-secondary-color); font-weight: 700; }
 .modal-image-container img { max-width: 100%; height: auto; border-radius: 4px; border: 1px solid var(--border-color); }
 
+.modal-footer {
+    margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border-color);
+    display: flex; justify-content: space-around; align-items: center; text-align: center;
+}
+.footer-stat { display: flex; flex-direction: column; }
+.footer-stat .label { font-size: 0.8rem; color: var(--text-secondary-color); text-transform: uppercase; }
+.footer-stat .value { font-size: 1.2rem; font-weight: 700; }
 
-/* CHANGED: This now defaults to vertical on all screen sizes */
+#toastContainer {
+    position: fixed; top: 20px; right: 20px; z-index: 2000;
+    display: flex; flex-direction: column; gap: 10px;
+}
+.toast {
+    padding: 12px 20px; border-radius: 6px; color: white; font-weight: 700;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3); opacity: 0;
+    transform: translateX(100%); animation: slideIn 0.5s forwards, fadeOut 0.5s 3.5s forwards;
+}
+.toast.success { background-color: var(--green); }
+.toast.error { background-color: var(--red); }
+.toast.info { background-color: var(--primary-color); }
+
+@keyframes slideIn { to { opacity: 1; transform: translateX(0); } }
+@keyframes fadeOut { to { opacity: 0; transform: translateX(100%); } }
+
 @media (max-width: 992px) { .dashboard-section { grid-template-columns: 1fr; } .modal-body { flex-direction: column; } }
 @media (max-width: 768px) { .form-row { flex-direction: column; gap: 1rem; } .form-group { min-height: auto; } }
