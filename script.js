@@ -16,6 +16,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const winRateEl = document.getElementById('winRate');
     const profitFactorEl = document.getElementById('profitFactor');
     const currentBalanceEl = document.getElementById('currentBalance');
+    const maxWinStreakEl = document.getElementById('maxWinStreak');
+    const maxLossStreakEl = document.getElementById('maxLossStreak');
     const dailyWinRateContainerEl = document.getElementById('dailyWinRateContainer');
     const saveSessionBtn = document.getElementById('saveSessionBtn');
     const loadSessionInput = document.getElementById('loadSessionInput');
@@ -81,17 +83,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.querySelectorAll('.preview-box').forEach(box => {
-        // NEW: Improved logic for hover and paste
         box.addEventListener('mouseover', () => box.focus());
         box.addEventListener('mouseout', () => box.blur());
-
         box.addEventListener('click', (e) => { 
-            // Only trigger file input if the box is empty and we are not clearing the image
             if (!box.classList.contains('has-image') && (e.target.classList.contains('preview-box') || e.target.tagName === 'SPAN')) {
                 document.getElementById(box.dataset.uploadTarget).click();
             }
         });
-
         box.addEventListener('dragover', (e) => { e.preventDefault(); box.style.borderColor = 'var(--primary-color)'; });
         box.addEventListener('dragleave', () => { box.style.borderColor = 'var(--border-color)'; });
         box.addEventListener('drop', (e) => {
@@ -163,7 +161,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.equityCurve.length === 0) { alert('Please start a session first.'); return; }
         const currentBalance = state.equityCurve[state.equityCurve.length - 1];
         
-        // CHANGED: "penetrationPips" is now "breakoutPips"
         const trade = {
             id: state.trades.length + 1, date: document.getElementById('tradeDate').value,
             day: new Date(document.getElementById('tradeDate').value).toLocaleString('en-US', { weekday: 'long', timeZone: 'UTC' }),
@@ -217,7 +214,6 @@ document.addEventListener('DOMContentLoaded', () => {
             row.dataset.tradeId = trade.id;
             const outcomeClass = trade.plAmount > 0 ? 'outcome-win' : 'outcome-loss';
             row.classList.add(outcomeClass);
-            // CHANGED: "penetrationPips" is now "breakoutPips"
             row.innerHTML = `
                 <td>${trade.id}</td><td>${trade.date}</td><td>${trade.day}</td>
                 <td>${trade.type.charAt(0).toUpperCase() + trade.type.slice(1)}</td><td>${trade.breakoutPips}</td>
@@ -228,6 +224,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function calculateStreaks(trades) {
+        let maxWinStreak = 0, maxLossStreak = 0;
+        let currentWinStreak = 0, currentLossStreak = 0;
+        trades.forEach(trade => {
+            if (trade.plAmount > 0) {
+                currentWinStreak++;
+                currentLossStreak = 0;
+            } else {
+                currentLossStreak++;
+                currentWinStreak = 0;
+            }
+            if (currentWinStreak > maxWinStreak) maxWinStreak = currentWinStreak;
+            if (currentLossStreak > maxLossStreak) maxLossStreak = currentLossStreak;
+        });
+        return { maxWinStreak, maxLossStreak };
+    }
+
     function calculateMetrics() {
         const numTrades = state.trades.length;
         const safeInitialBalance = state.initialBalance || 0;
@@ -236,6 +249,8 @@ document.addEventListener('DOMContentLoaded', () => {
             totalTradesEl.textContent = '0';
             winRateEl.textContent = 'N/A';
             profitFactorEl.textContent = 'N/A';
+            maxWinStreakEl.textContent = 'N/A';
+            maxLossStreakEl.textContent = 'N/A';
             currentBalanceEl.textContent = safeInitialBalance.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
             return;
         }
@@ -246,9 +261,13 @@ document.addEventListener('DOMContentLoaded', () => {
             else { totalLoss += trade.plAmount; }
         });
         
+        const { maxWinStreak, maxLossStreak } = calculateStreaks(state.trades);
+        
         totalTradesEl.textContent = numTrades;
         winRateEl.textContent = `${((wins / numTrades) * 100).toFixed(2)}%`;
         profitFactorEl.textContent = totalLoss !== 0 ? Math.abs(totalProfit / totalLoss).toFixed(2) : 'Infinity';
+        maxWinStreakEl.textContent = maxWinStreak;
+        maxLossStreakEl.textContent = maxLossStreak;
         currentBalanceEl.textContent = state.equityCurve[state.equityCurve.length - 1].toLocaleString('en-US', { style: 'currency', currency: 'USD' });
     }
 
@@ -311,7 +330,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function exportToCSV() {
         if(state.trades.length === 0) { alert("No trades to export."); return; }
-        // CHANGED: "Penetration" is now "Breakout"
         const headers = ["ID", "Date", "Day", "Type", "Breakout (pips)", "Outcome", "P/L ($)", "New Balance", "Notes"];
         let csvContent = headers.join(",") + "\r\n";
         state.trades.forEach(trade => {
@@ -324,7 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
         link.click();
     }
 
-    // NEW: Completely overhauled function for visual report with lightbox
+    // CHANGED: Report generation logic is updated to include the layout toggle
     function generateVisualReport() {
         if (state.trades.length === 0) { alert("No trades to generate a report for."); return; }
 
@@ -333,20 +351,30 @@ document.addEventListener('DOMContentLoaded', () => {
         <style>
             :root { --bg-color: #222831; --surface-color: #393E46; --text-color: #EEEEEE; --green: #28a745; --red: #dc3545; --border-color: #4a5058; }
             body { font-family: sans-serif; background-color: var(--bg-color); color: var(--text-color); padding: 20px; margin: 0; }
-            h1 { text-align: center; border-bottom: 2px solid var(--surface-color); padding-bottom: 10px; margin-bottom: 40px; }
+            .report-header { text-align: center; border-bottom: 2px solid var(--surface-color); padding-bottom: 10px; margin-bottom: 20px; }
+            .layout-toggle { display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 40px; font-size: 0.9rem; }
+            .switch { position: relative; display: inline-block; width: 50px; height: 28px; }
+            .switch input { opacity: 0; width: 0; height: 0; }
+            .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #5b6370; transition: .4s; border-radius: 28px; }
+            .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+            input:checked + .slider { background-color: #00ADB5; }
+            input:checked + .slider:before { transform: translateX(22px); }
             .trade-card { background-color: var(--surface-color); border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 30px; padding: 20px; }
-            .trade-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+            .trade-header { margin-bottom: 20px; }
             .trade-header h2 { margin: 0; font-size: 1.5rem; }
-            .trade-header-details { display: flex; align-items: center; gap: 20px; }
-            .trade-header-details .pips-info { font-size: 0.9rem; color: #b0b0b0; background-color: #222831; padding: 5px 10px; border-radius: 4px; }
-            .trade-header-details .outcome { font-size: 1.2rem; font-weight: bold; }
+            .trade-details { display: flex; align-items: center; gap: 20px; }
+            .trade-details .pips-info { font-size: 0.9rem; color: #b0b0b0; background-color: #222831; padding: 5px 10px; border-radius: 4px; }
+            .trade-details .outcome { font-size: 1.2rem; font-weight: bold; }
             .outcome-win { color: var(--green); }
             .outcome-loss { color: var(--red); }
             .image-gallery { display: flex; flex-direction: column; gap: 20px; }
+            .horizontal-layout .image-gallery { flex-direction: row; }
+            .horizontal-layout .image-container { flex: 1; }
             .image-container { text-align: center; }
             .image-container img { max-width: 100%; border-radius: 4px; border: 1px solid var(--border-color); cursor: pointer; transition: transform 0.2s; }
             .image-container img:hover { transform: scale(1.01); }
             .image-container h3 { margin-bottom: 10px; color: #b0b0b0; }
+            .after-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
             #lightbox { display: none; position: fixed; z-index: 1000; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.9); justify-content: center; align-items: center; }
             #lightbox.active { display: flex; }
             #lightbox img { max-width: 90%; max-height: 80%; }
@@ -355,7 +383,17 @@ document.addEventListener('DOMContentLoaded', () => {
             .lightbox-next { right: 40px; }
             .lightbox-prev { left: 40px; }
         </style>
-        </head><body><h1>Visual Trade Report</h1>`;
+        </head><body>
+            <div class="report-header"><h1>Visual Trade Report</h1></div>
+            <div class="layout-toggle">
+                <span>Vertical</span>
+                <label class="switch">
+                    <input type="checkbox" id="layout-switch">
+                    <span class="slider"></span>
+                </label>
+                <span>Horizontal</span>
+            </div>
+        `;
 
         state.trades.forEach(trade => {
             const outcomeClass = trade.plAmount > 0 ? 'outcome-win' : 'outcome-loss';
@@ -366,10 +404,6 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="trade-card">
                 <div class="trade-header">
                     <h2>Trade #${trade.id} (${trade.date})</h2>
-                    <div class="trade-header-details">
-                        <span class="pips-info">SL: ${trade.stopLossPips}p | Breakout: ${trade.breakoutPips}p</span>
-                        <span class="outcome ${outcomeClass}">${trade.finalOutcome} (${percentagePL.toFixed(2)}%)</span>
-                    </div>
                 </div>
                 <div class="image-gallery">
                     <div class="image-container">
@@ -377,7 +411,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         <img src="${trade.beforeImage || ''}" alt="Before Chart" class="lightbox-image">
                     </div>
                     <div class="image-container">
-                        <h3>After</h3>
+                        <div class="after-header">
+                            <h3>After</h3>
+                            <div class="trade-details">
+                                <span class="pips-info">SL: ${trade.stopLossPips}p | Breakout: ${trade.breakoutPips}p</span>
+                                <span class="outcome ${outcomeClass}">${trade.finalOutcome} (${percentagePL.toFixed(2)}%)</span>
+                            </div>
+                        </div>
                         <img src="${trade.afterImage || ''}" alt="After Chart" class="lightbox-image">
                     </div>
                 </div>
@@ -392,31 +432,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 <img id="lightbox-content" src="">
             </div>
             <script>
+                // Lightbox logic
                 const lightbox = document.getElementById('lightbox');
                 const lightboxContent = document.getElementById('lightbox-content');
                 const images = document.querySelectorAll('.lightbox-image');
                 let currentIndex = 0;
-
                 function showImage(index) {
                     if (index < 0 || index >= images.length) return;
                     currentIndex = index;
                     lightboxContent.src = images[currentIndex].src;
                     lightbox.classList.add('active');
                 }
-
-                images.forEach((img, index) => {
-                    img.addEventListener('click', () => showImage(index));
-                });
-
+                images.forEach((img, index) => img.addEventListener('click', () => showImage(index)));
                 document.querySelector('.lightbox-close').addEventListener('click', () => lightbox.classList.remove('active'));
                 document.querySelector('.lightbox-prev').addEventListener('click', () => showImage(currentIndex - 1));
                 document.querySelector('.lightbox-next').addEventListener('click', () => showImage(currentIndex + 1));
-                
                 document.addEventListener('keydown', e => {
                     if (!lightbox.classList.contains('active')) return;
                     if (e.key === 'ArrowRight') showImage(currentIndex + 1);
                     if (e.key === 'ArrowLeft') showImage(currentIndex - 1);
                     if (e.key === 'Escape') lightbox.classList.remove('active');
+                });
+
+                // NEW: Layout toggle logic
+                const layoutSwitch = document.getElementById('layout-switch');
+                const savedLayout = localStorage.getItem('reportLayout');
+                if (savedLayout === 'horizontal') {
+                    document.body.classList.add('horizontal-layout');
+                    layoutSwitch.checked = true;
+                }
+                layoutSwitch.addEventListener('change', () => {
+                    if (layoutSwitch.checked) {
+                        document.body.classList.add('horizontal-layout');
+                        localStorage.setItem('reportLayout', 'horizontal');
+                    } else {
+                        document.body.classList.remove('horizontal-layout');
+                        localStorage.setItem('reportLayout', 'vertical');
+                    }
                 });
             <\/script>
         </body></html>`;
