@@ -275,10 +275,58 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function saveSession() { /* ... function remains the same ... */ }
-    function loadSession(event) { /* ... function remains the same ... */ }
-    function exportToCSV() { /* ... function remains the same ... */ }
-    function generateVisualReport() { /* ... function remains the same ... */ }
+    function saveSession() {
+        if(state.trades.length === 0) { alert("No trades to save."); return; }
+        const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `level2-journal-session-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+    }
+    
+    function loadSession(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                state = JSON.parse(e.target.result);
+                initialBalanceEl.value = state.initialBalance;
+                riskPercentageEl.value = state.riskPercentage;
+                updateUI();
+                alert('Session loaded successfully!');
+            } catch (error) { alert('Failed to load session file. It may be corrupted.'); }
+        };
+        reader.readAsText(file);
+    }
+    
+    function exportToCSV() {
+        if(state.trades.length === 0) { alert("No trades to export."); return; }
+        const headers = ["ID", "Date", "Day", "Type", "Penetration (pips)", "Outcome", "P/L ($)", "New Balance", "Notes"];
+        let csvContent = headers.join(",") + "\r\n";
+        state.trades.forEach(trade => {
+            const row = [trade.id, trade.date, trade.day, trade.type, trade.penetrationPips, trade.finalOutcome, trade.plAmount.toFixed(2), trade.newBalance.toFixed(2), `"${(trade.notes || '').replace(/"/g, '""')}"`];
+            csvContent += row.join(",") + "\r\n";
+        });
+        const link = document.createElement("a");
+        link.setAttribute("href", 'data:text/csv;charset=utf-8,' + encodeURI(csvContent));
+        link.setAttribute("download", `level2-journal-export-${new Date().toISOString().slice(0, 10)}.csv`);
+        link.click();
+    }
+
+    function generateVisualReport() {
+        if (state.trades.length === 0) { alert("No trades to generate a report for."); return; }
+        let reportHTML = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Level 2 Journal - Visual Report</title><style>body{font-family:sans-serif;background-color:#222831;color:#EEEEEE;padding:20px}h1{text-align:center;border-bottom:2px solid #393E46;padding-bottom:10px;margin-bottom:40px}.trade-card{background-color:#393E46;border:1px solid #4a5058;border-radius:8px;margin-bottom:30px;padding:20px}.trade-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}.trade-header h2{margin:0}.outcome-win{color:#28a745}.outcome-loss{color:#dc3545}.image-gallery{display:flex;gap:20px}.image-container{flex:1;text-align:center}.image-container img{max-width:100%;border-radius:4px;border:1px solid #4a5058}.image-container h3{margin-bottom:10px;color:#b0b0b0}@media (max-width:800px){.image-gallery{flex-direction:column}}</style></head><body><h1>Visual Trade Report</h1>`;
+        state.trades.forEach(trade => {
+            const outcomeClass = trade.plAmount > 0 ? 'outcome-win' : 'outcome-loss';
+            reportHTML += `<div class="trade-card"><div class="trade-header"><h2>Trade #${trade.id} (${trade.date})</h2><h2 class="${outcomeClass}">${trade.finalOutcome} (${(trade.plAmount / (state.equityCurve[trade.id - 1] || state.initialBalance) * 100).toFixed(2)}%)</h2></div><div class="image-gallery"><div class="image-container"><h3>Before</h3><img src="${trade.beforeImage || ''}" alt="Before Chart"></div><div class="image-container"><h3>After</h3><img src="${trade.afterImage || ''}" alt="After Chart"></div></div></div>`;
+        });
+        reportHTML += `</body></html>`;
+        const reportWindow = window.open();
+        reportWindow.document.write(reportHTML);
+        reportWindow.document.close();
+    }
     
     initializeSession();
 });
