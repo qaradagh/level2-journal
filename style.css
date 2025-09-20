@@ -61,15 +61,18 @@ header p { color: var(--text-secondary-color); font-size: 1.1rem; }
     cursor: pointer;
     color: var(--text-color);
     transition: background-color 0.3s, border-color 0.3s;
-    /* CHANGED: Adjusted font-size for better emoji display */
     font-size: 1.25rem; 
 }
 #theme-toggle:hover {
     border-color: var(--primary-color);
 }
-#theme-toggle .moon-icon { display: none; }
-body.light-mode #theme-toggle .sun-icon { display: none; }
-body.light-mode #theme-toggle .moon-icon { display: block; }
+/* CHANGED: Replaced show/hide logic with a flip transform */
+#theme-toggle .theme-icon {
+    transition: transform 0.4s ease;
+}
+body.light-mode #theme-toggle .theme-icon {
+    transform: scaleX(-1);
+}
 
 .card {
     background-color: var(--surface-color);
