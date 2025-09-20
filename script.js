@@ -42,7 +42,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     // --- EVENT LISTENERS ---
-    tradeDateEl.addEventListener('change', updateDayOfWeek);
+    // CHANGED: Added saving date to localStorage on change
+    tradeDateEl.addEventListener('change', () => {
+        updateDayOfWeek();
+        localStorage.setItem('lastTradeDate', tradeDateEl.value);
+    });
     outcomeEl.addEventListener('change', () => { recoveryGroupEl.style.display = outcomeEl.value === 'loss' ? 'block' : 'none'; });
     startSessionBtn.addEventListener('click', () => {
         if (state.trades.length > 0) {
@@ -120,6 +124,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- FUNCTIONS ---
+    // NEW: Function to load the last used date from localStorage
+    function loadLastDate() {
+        const lastDate = localStorage.getItem('lastTradeDate');
+        if (lastDate) {
+            tradeDateEl.value = lastDate;
+            updateDayOfWeek();
+        }
+    }
+
     function updateDayOfWeek() {
         if (!tradeDateEl.value) {
             dayOfWeekEl.value = '';
@@ -198,6 +211,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.preview-box').forEach(box => clearImage(box));
         dayOfWeekEl.value = '';
         document.querySelector('.recovery-group').style.display = 'none';
+
+        // Keep the date field populated
+        loadLastDate();
     }
 
     function updateUI() {
@@ -342,7 +358,6 @@ document.addEventListener('DOMContentLoaded', () => {
         link.click();
     }
 
-    // CHANGED: Report generation logic is updated for alignment and lightbox controls
     function generateVisualReport() {
         if (state.trades.length === 0) { alert("No trades to generate a report for."); return; }
 
@@ -374,13 +389,11 @@ document.addEventListener('DOMContentLoaded', () => {
             .image-container img { max-width: 100%; border-radius: 4px; border: 1px solid var(--border-color); cursor: pointer; transition: transform 0.2s; }
             .image-container img:hover { transform: scale(1.01); }
             .image-container h3 { margin: 0; color: #b0b0b0; }
-            /* NEW: Styles for alignment fix */
             .image-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; min-height: 38px; }
             .image-header.before-header { justify-content: flex-start; }
             #lightbox { display: none; position: fixed; z-index: 1000; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.9); justify-content: center; align-items: center; }
             #lightbox.active { display: flex; }
             #lightbox img { max-width: 90%; max-height: 85%; }
-            /* CHANGED: Smaller lightbox controls */
             .lightbox-close, .lightbox-next, .lightbox-prev { position: absolute; color: white; font-size: 2.2rem; font-weight: bold; cursor: pointer; user-select: none; transition: color 0.2s; }
             .lightbox-close:hover, .lightbox-next:hover, .lightbox-prev:hover { color: #00ADB5; }
             .lightbox-close { top: 15px; right: 25px; }
@@ -440,7 +453,6 @@ document.addEventListener('DOMContentLoaded', () => {
             <script>
                 const lightbox = document.getElementById('lightbox');
                 const lightboxContent = document.getElementById('lightbox-content');
-                // CHANGED: Added IDs to buttons for easier access
                 const prevButton = document.getElementById('lightbox-prev');
                 const nextButton = document.getElementById('lightbox-next');
                 const images = document.querySelectorAll('.lightbox-image');
@@ -451,14 +463,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentIndex = index;
                     lightboxContent.src = images[currentIndex].src;
                     lightbox.classList.add('active');
-
-                    // NEW: Logic to show/hide prev/next buttons
                     prevButton.style.display = (currentIndex === 0) ? 'none' : 'block';
                     nextButton.style.display = (currentIndex === images.length - 1) ? 'none' : 'block';
                 }
 
                 images.forEach((img, index) => img.addEventListener('click', () => showImage(index)));
-                document.querySelector('.lightbox-close').addEventListener('click', () => lightbox.classList.remove('active'));
+                document.querySelector('.close-button').addEventListener('click', () => lightbox.classList.remove('active'));
                 prevButton.addEventListener('click', () => showImage(currentIndex - 1));
                 nextButton.addEventListener('click', () => showImage(currentIndex + 1));
                 
@@ -492,5 +502,7 @@ document.addEventListener('DOMContentLoaded', () => {
         reportWindow.document.close();
     }
     
+    // --- INITIALIZATION ---
+    loadLastDate(); // Load the last used date on startup
     initializeSession();
 });
