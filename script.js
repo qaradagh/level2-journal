@@ -342,7 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
         link.click();
     }
 
-    // CHANGED: Report generation logic is updated to include the layout toggle
+    // CHANGED: Report generation logic is updated for alignment and lightbox controls
     function generateVisualReport() {
         if (state.trades.length === 0) { alert("No trades to generate a report for."); return; }
 
@@ -363,7 +363,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .trade-header { margin-bottom: 20px; }
             .trade-header h2 { margin: 0; font-size: 1.5rem; }
             .trade-details { display: flex; align-items: center; gap: 20px; }
-            .trade-details .pips-info { font-size: 0.9rem; color: #b0b0b0; background-color: #222831; padding: 5px 10px; border-radius: 4px; }
+            .trade-details .pips-info { font-size: 0.9rem; color: #b0b0b0; background-color: #222831; padding: 5px 10px; border-radius: 4px; white-space: nowrap; }
             .trade-details .outcome { font-size: 1.2rem; font-weight: bold; }
             .outcome-win { color: var(--green); }
             .outcome-loss { color: var(--red); }
@@ -373,15 +373,19 @@ document.addEventListener('DOMContentLoaded', () => {
             .image-container { text-align: center; }
             .image-container img { max-width: 100%; border-radius: 4px; border: 1px solid var(--border-color); cursor: pointer; transition: transform 0.2s; }
             .image-container img:hover { transform: scale(1.01); }
-            .image-container h3 { margin-bottom: 10px; color: #b0b0b0; }
-            .after-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+            .image-container h3 { margin: 0; color: #b0b0b0; }
+            /* NEW: Styles for alignment fix */
+            .image-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; min-height: 38px; }
+            .image-header.before-header { justify-content: flex-start; }
             #lightbox { display: none; position: fixed; z-index: 1000; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.9); justify-content: center; align-items: center; }
             #lightbox.active { display: flex; }
-            #lightbox img { max-width: 90%; max-height: 80%; }
-            .lightbox-close, .lightbox-next, .lightbox-prev { position: absolute; color: white; font-size: 3rem; font-weight: bold; cursor: pointer; user-select: none; }
-            .lightbox-close { top: 20px; right: 40px; }
-            .lightbox-next { right: 40px; }
-            .lightbox-prev { left: 40px; }
+            #lightbox img { max-width: 90%; max-height: 85%; }
+            /* CHANGED: Smaller lightbox controls */
+            .lightbox-close, .lightbox-next, .lightbox-prev { position: absolute; color: white; font-size: 2.2rem; font-weight: bold; cursor: pointer; user-select: none; transition: color 0.2s; }
+            .lightbox-close:hover, .lightbox-next:hover, .lightbox-prev:hover { color: #00ADB5; }
+            .lightbox-close { top: 15px; right: 25px; }
+            .lightbox-next { top: 50%; transform: translateY(-50%); right: 25px; }
+            .lightbox-prev { top: 50%; transform: translateY(-50%); left: 25px; }
         </style>
         </head><body>
             <div class="report-header"><h1>Visual Trade Report</h1></div>
@@ -407,11 +411,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div class="image-gallery">
                     <div class="image-container">
-                        <h3>Before</h3>
+                        <div class="image-header before-header">
+                           <h3>Before</h3>
+                        </div>
                         <img src="${trade.beforeImage || ''}" alt="Before Chart" class="lightbox-image">
                     </div>
                     <div class="image-container">
-                        <div class="after-header">
+                        <div class="image-header">
                             <h3>After</h3>
                             <div class="trade-details">
                                 <span class="pips-info">SL: ${trade.stopLossPips}p | Breakout: ${trade.breakoutPips}p</span>
@@ -427,26 +433,35 @@ document.addEventListener('DOMContentLoaded', () => {
         reportHTML += `
             <div id="lightbox">
                 <span class="lightbox-close">&times;</span>
-                <span class="lightbox-prev">&#10094;</span>
-                <span class="lightbox-next">&#10095;</span>
+                <span id="lightbox-prev" class="lightbox-prev">&#10094;</span>
+                <span id="lightbox-next" class="lightbox-next">&#10095;</span>
                 <img id="lightbox-content" src="">
             </div>
             <script>
-                // Lightbox logic
                 const lightbox = document.getElementById('lightbox');
                 const lightboxContent = document.getElementById('lightbox-content');
+                // CHANGED: Added IDs to buttons for easier access
+                const prevButton = document.getElementById('lightbox-prev');
+                const nextButton = document.getElementById('lightbox-next');
                 const images = document.querySelectorAll('.lightbox-image');
                 let currentIndex = 0;
+
                 function showImage(index) {
                     if (index < 0 || index >= images.length) return;
                     currentIndex = index;
                     lightboxContent.src = images[currentIndex].src;
                     lightbox.classList.add('active');
+
+                    // NEW: Logic to show/hide prev/next buttons
+                    prevButton.style.display = (currentIndex === 0) ? 'none' : 'block';
+                    nextButton.style.display = (currentIndex === images.length - 1) ? 'none' : 'block';
                 }
+
                 images.forEach((img, index) => img.addEventListener('click', () => showImage(index)));
                 document.querySelector('.lightbox-close').addEventListener('click', () => lightbox.classList.remove('active'));
-                document.querySelector('.lightbox-prev').addEventListener('click', () => showImage(currentIndex - 1));
-                document.querySelector('.lightbox-next').addEventListener('click', () => showImage(currentIndex + 1));
+                prevButton.addEventListener('click', () => showImage(currentIndex - 1));
+                nextButton.addEventListener('click', () => showImage(currentIndex + 1));
+                
                 document.addEventListener('keydown', e => {
                     if (!lightbox.classList.contains('active')) return;
                     if (e.key === 'ArrowRight') showImage(currentIndex + 1);
@@ -454,7 +469,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (e.key === 'Escape') lightbox.classList.remove('active');
                 });
 
-                // NEW: Layout toggle logic
                 const layoutSwitch = document.getElementById('layout-switch');
                 const savedLayout = localStorage.getItem('reportLayout');
                 if (savedLayout === 'horizontal') {
