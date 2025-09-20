@@ -8,7 +8,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-
     <div class="container">
         <header>
             <h1>Level 2 Journal</h1>
@@ -38,7 +37,10 @@
                         <div class="form-group">
                             <label for="tradeDate">Date</label>
                             <input type="date" id="tradeDate" required>
-                            <span id="dayOfWeek"></span>
+                        </div>
+                        <div class="form-group">
+                            <label for="dayOfWeek">Day</label>
+                            <input type="text" id="dayOfWeek" readonly>
                         </div>
                         <div class="form-group">
                             <label for="tradeType">Trade Type</label>
@@ -50,19 +52,25 @@
                         </div>
                         <div class="form-group">
                             <label for="penetrationPips">Penetration (pips)</label>
-                            <input type="number" id="penetrationPips" step="1">
+                            <input type="number" id="penetrationPips" value="4" step="1">
                         </div>
                     </div>
                     <div class="form-row">
                         <div class="form-group file-upload">
                             <label>Before Chart</label>
                             <input type="file" class="image-upload" id="before-upload" accept="image/*" style="display: none;">
-                            <div class="preview-box" id="before-preview" data-upload-target="before-upload">Click or drop image</div>
+                            <div class="preview-box" id="before-preview" data-upload-target="before-upload" tabindex="0">
+                                <span>Click, paste, or drop image</span>
+                                <button type="button" class="clear-image-btn" title="Clear Image">&times;</button>
+                            </div>
                         </div>
                         <div class="form-group file-upload">
                             <label>After Chart</label>
                             <input type="file" class="image-upload" id="after-upload" accept="image/*" style="display: none;">
-                            <div class="preview-box" id="after-preview" data-upload-target="after-upload">Click or drop image</div>
+                            <div class="preview-box" id="after-preview" data-upload-target="after-upload" tabindex="0">
+                                <span>Click, paste, or drop image</span>
+                                <button type="button" class="clear-image-btn" title="Clear Image">&times;</button>
+                            </div>
                         </div>
                     </div>
                     <div class="form-row trade-outcome">
@@ -93,7 +101,14 @@
                 <div class="stats-container card">
                     <h2>Performance Metrics</h2>
                     <div id="metrics">
+                        <p>Total Trades: <span id="totalTrades">0</span></p>
+                        <p>Win Rate: <span id="winRate">N/A</span></p>
                         <p>Profit Factor: <span id="profitFactor">N/A</span></p>
+                        <p>Current Balance: <span id="currentBalance">$0.00</span></p>
+                    </div>
+                    <div id="daily-metrics" class="card-subsection">
+                        <h3>Win Rate by Day</h3>
+                        <div id="dailyWinRateContainer"></div>
                     </div>
                 </div>
             </div>

@@ -11,10 +11,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const dayOfWeekEl = document.getElementById('dayOfWeek');
     const outcomeEl = document.getElementById('outcome');
     const recoveryGroupEl = document.querySelector('.recovery-group');
-    const stopLossEl = document.getElementById('stopLossPips');
-    const penInputEl = document.getElementById('penetrationPips');
     const tradeLogBody = document.querySelector('#tradeLog tbody');
+    const totalTradesEl = document.getElementById('totalTrades');
+    const winRateEl = document.getElementById('winRate');
     const profitFactorEl = document.getElementById('profitFactor');
+    const currentBalanceEl = document.getElementById('currentBalance');
+    const dailyWinRateContainerEl = document.getElementById('dailyWinRateContainer');
     const saveSessionBtn = document.getElementById('saveSessionBtn');
     const loadSessionInput = document.getElementById('loadSessionInput');
     const exportCsvBtn = document.getElementById('exportCsvBtn');
@@ -38,17 +40,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     // --- EVENT LISTENERS ---
-    stopLossEl.addEventListener('input', updatePenetrationInput);
-    stopLossEl.addEventListener('blur', roundStopLoss);
-    tradeDateEl.addEventListener('change', () => {
-        const date = new Date(tradeDateEl.value);
-        const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' });
-        document.getElementById('dayOfWeek').innerHTML = dayOfWeek; // Changed to innerHTML
-    });
+    tradeDateEl.addEventListener('change', updateDayOfWeek);
     outcomeEl.addEventListener('change', () => { recoveryGroupEl.style.display = outcomeEl.value === 'loss' ? 'block' : 'none'; });
     startSessionBtn.addEventListener('click', () => {
-        if (state.trades.length > 0 && !confirm('Are you sure? This will clear all trade data.')) return;
-        initializeSession();
+        if (state.trades.length > 0) {
+            if (confirm('Are you sure you want to reset the session? All trade data will be lost.')) {
+                initializeSession();
+                alert('Session has been reset.');
+            }
+        } else {
+            initializeSession();
+            alert('New session started!');
+        }
     });
     tradeForm.addEventListener('submit', (e) => { e.preventDefault(); addTrade(); });
     saveSessionBtn.addEventListener('click', saveSession);
@@ -83,25 +86,46 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById(box.dataset.uploadTarget).click();
             }
         });
+        box.addEventListener('mouseover', () => box.focus());
+        box.addEventListener('mouseout', () => box.blur());
+        box.addEventListener('dragover', (e) => { e.preventDefault(); box.style.borderColor = 'var(--primary-color)'; });
+        box.addEventListener('dragleave', () => { box.style.borderColor = 'var(--border-color)'; });
+        box.addEventListener('drop', (e) => {
+            e.preventDefault(); box.style.borderColor = 'var(--border-color)';
+            const file = e.dataTransfer.files[0];
+            if (file) handleFile(file, box);
+        });
+        box.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const clipboardData = e.clipboardData || window.clipboardData;
+            const items = clipboardData.items;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    const file = items[i].getAsFile();
+                    handleFile(file, box);
+                    break;
+                }
+            }
+        });
+    });
+
+    document.querySelectorAll('.image-upload').forEach(input => {
+        input.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            const previewBox = document.querySelector(`[data-upload-target="${e.target.id}"]`);
+            if (file && previewBox) handleFile(file, previewBox);
+        });
     });
 
     // --- FUNCTIONS ---
-
-    function roundStopLoss() {
-        let slValue = parseInt(stopLossEl.value, 10);
-        if (isNaN(slValue) || slValue <= 0) return;
-
-        const remainder = slValue % 3;
-        if (remainder !== 0) {
-            slValue = slValue + (3 - remainder);
-            stopLossEl.value = slValue;
+    function updateDayOfWeek() {
+        if (!tradeDateEl.value) {
+            dayOfWeekEl.value = '';
+            return;
         }
-        updatePenetrationInput();
-    }
-    
-    function updatePenetrationInput() {
-        const slValue = parseFloat(stopLossEl.value) || 0;
-        document.getElementById('penetrationPips').value = Math.round(slValue / 3);
+        const date = new Date(tradeDateEl.value);
+        const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+        dayOfWeekEl.value = dayOfWeek;
     }
 
     function clearImage(previewBox) {
@@ -136,7 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const currentBalance = state.equityCurve[state.equityCurve.length - 1];
         const trade = {
             id: state.trades.length + 1, date: document.getElementById('tradeDate').value,
-            day: document.getElementById('dayOfWeek').innerHTML,
+            day: new Date(document.getElementById('tradeDate').value).toLocaleString('en-US', { weekday: 'long', timeZone: 'UTC' }),
             type: document.getElementById('tradeType').value, penetrationPips: document.getElementById('penetrationPips').value,
             stopLossPips: document.getElementById('stopLossPips').value, initialOutcome: document.getElementById('outcome').value,
             recoveryOutcome: document.getElementById('recoveryOutcome').value, notes: document.getElementById('tradeNotes').value,
@@ -168,14 +192,14 @@ document.addEventListener('DOMContentLoaded', () => {
         updateUI();
         tradeForm.reset();
         document.querySelectorAll('.preview-box').forEach(box => clearImage(box));
-        document.getElementById('dayOfWeek').innerHTML = '';
+        dayOfWeekEl.value = '';
         document.querySelector('.recovery-group').style.display = 'none';
-        updatePenetrationInput();
     }
 
     function updateUI() {
         renderTradeLog();
         calculateMetrics();
+        renderDailyWinRates();
         updateChart();
     }
     
@@ -198,18 +222,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function calculateMetrics() {
         const numTrades = state.trades.length;
+        const safeInitialBalance = state.initialBalance || 0;
+        
         if (numTrades === 0) {
+            totalTradesEl.textContent = '0';
+            winRateEl.textContent = 'N/A';
             profitFactorEl.textContent = 'N/A';
+            currentBalanceEl.textContent = safeInitialBalance.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
             return;
         }
 
-        let totalProfit = 0; let totalLoss = 0;
+        let wins = 0; let totalProfit = 0; let totalLoss = 0;
         state.trades.forEach(trade => {
-            if (trade.plAmount > 0) { totalProfit += trade.plAmount; } 
+            if (trade.plAmount > 0) { wins++; totalProfit += trade.plAmount; } 
             else { totalLoss += trade.plAmount; }
         });
         
+        totalTradesEl.textContent = numTrades;
+        winRateEl.textContent = `${((wins / numTrades) * 100).toFixed(2)}%`;
         profitFactorEl.textContent = totalLoss !== 0 ? Math.abs(totalProfit / totalLoss).toFixed(2) : 'Infinity';
+        currentBalanceEl.textContent = state.equityCurve[state.equityCurve.length - 1].toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+    }
+
+    function renderDailyWinRates() {
+        dailyWinRateContainerEl.innerHTML = '';
+        const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+        const dailyStats = daysOfWeek.reduce((acc, day) => ({ ...acc, [day]: { wins: 0, total: 0 } }), {});
+        state.trades.forEach(trade => {
+            if (dailyStats[trade.day]) { 
+                dailyStats[trade.day].total++; 
+                if (trade.plAmount > 0) dailyStats[trade.day].wins++; 
+            }
+        });
+        daysOfWeek.forEach(day => {
+            const stats = dailyStats[day];
+            const winRate = stats.total > 0 ? (stats.wins / stats.total) * 100 : 0;
+            const rateColor = winRate >= 50 ? 'var(--green)' : 'var(--red)';
+            const dayEl = document.createElement('div');
+            dayEl.classList.add('day-stat');
+            dayEl.innerHTML = `<div class="day-name">${day}</div><div class="day-rate" style="color: ${stats.total > 0 ? rateColor : 'var(--text-secondary-color)'}">${stats.total > 0 ? winRate.toFixed(1) + '%' : 'N/A'}</div><div class="day-count" style="font-size: 0.8em; color: var(--text-secondary-color);">${stats.wins}/${stats.total}</div>`;
+            dailyWinRateContainerEl.appendChild(dayEl);
+        });
     }
 
     function updateChart() {
@@ -250,7 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function exportToCSV() {
         if(state.trades.length === 0) { alert("No trades to export."); return; }
-        const headers = ["ID", "Date", "Day", "Type", "Breakout (pips)", "Outcome", "P/L ($)", "New Balance", "Notes"];
+        const headers = ["ID", "Date", "Day", "Type", "Penetration (pips)", "Outcome", "P/L ($)", "New Balance", "Notes"];
         let csvContent = headers.join(",") + "\r\n";
         state.trades.forEach(trade => {
             const row = [trade.id, trade.date, trade.day, trade.type, trade.penetrationPips, trade.finalOutcome, trade.plAmount.toFixed(2), trade.newBalance.toFixed(2), `"${(trade.notes || '').replace(/"/g, '""')}"`];
@@ -264,16 +317,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function generateVisualReport() {
         if (state.trades.length === 0) { alert("No trades to generate a report for."); return; }
-        let reportHTML = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Level 2 Journal - Visual Report</title><style>body{font-family:sans-serif;background-color:#222831;color:#EEEEEE;padding:20px}h1{text-align:center;border-bottom:2px solid #393E46;padding-bottom:10px;margin-bottom:40px}.trade-card{background-color:#393E46;border:1px solid #4a5058;border-radius:8px;margin-bottom:30px;padding:20px}.trade-header{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px}.trade-header h2{margin:0;font-size:1.5rem}.trade-header .outcome{text-align:right}.trade-header .outcome-result{font-size:1.5rem;font-weight:bold}.trade-header .outcome-details{font-size:.9rem;color:#b0b0b0;margin-top:5px}.outcome-win{color:#28a745}.outcome-loss{color:#dc3545}.image-gallery{display:flex;gap:20px;margin-top:15px}.image-container{flex:1;text-align:center}.image-container img{max-width:100%;border-radius:4px;border:1px solid #4a5058;cursor:pointer;transition:transform .2s}.image-container img:hover{transform:scale(1.02)}.image-container h3{margin-bottom:10px;color:#b0b0b0;font-weight:400}.lightbox{display:none;position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;background-color:rgba(0,0,0,.9);justify-content:center;align-items:center}.lightbox img{max-width:90%;max-height:90%}.lightbox-close{position:absolute;top:20px;right:35px;color:#fff;font-size:40px;font-weight:bold;cursor:pointer}@media (max-width:800px){.image-gallery{flex-direction:column}.trade-header{flex-direction:column;align-items:stretch}.trade-header .outcome{text-align:left;margin-top:10px}}</style></head><body><h1>Visual Trade Report</h1>`;
+        let reportHTML = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Level 2 Journal - Visual Report</title><style>body{font-family:sans-serif;background-color:#222831;color:#EEEEEE;padding:20px}h1{text-align:center;border-bottom:2px solid #393E46;padding-bottom:10px;margin-bottom:40px}.trade-card{background-color:#393E46;border:1px solid #4a5058;border-radius:8px;margin-bottom:30px;padding:20px}.trade-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}.trade-header h2{margin:0}.outcome-win{color:#28a745}.outcome-loss{color:#dc3545}.image-gallery{display:flex;gap:20px}.image-container{flex:1;text-align:center}.image-container img{max-width:100%;border-radius:4px;border:1px solid #4a5058}.image-container h3{margin-bottom:10px;color:#b0b0b0}@media (max-width:800px){.image-gallery{flex-direction:column}}</style></head><body><h1>Visual Trade Report</h1>`;
         state.trades.forEach(trade => {
             const outcomeClass = trade.plAmount > 0 ? 'outcome-win' : 'outcome-loss';
-            const initialBalanceForTrade = trade.id === 1 ? state.initialBalance : state.trades[trade.id - 2].newBalance;
-            const percentagePL = (trade.plAmount / initialBalanceForTrade * 100).toFixed(2);
-
-            reportHTML += `<div class="trade-card"><div class="trade-header"><h2>Trade #${trade.id} (${trade.date})</h2><div class="outcome"><div class="outcome-result ${outcomeClass}">${trade.finalOutcome} (${percentagePL}%)</div><div class="outcome-details">SL: ${trade.stopLossPips} pips / Breakout: ${trade.penetrationPips} pips</div></div></div><div class="image-gallery"><div class="image-container"><h3>Before</h3><img src="${trade.beforeImage||''}" alt="Before Chart" class="report-image"></div><div class="image-container"><h3>After</h3><img src="${trade.afterImage||''}" alt="After Chart" class="report-image"></div></div></div>`;
+            reportHTML += `<div class="trade-card"><div class="trade-header"><h2>Trade #${trade.id} (${trade.date})</h2><h2 class="${outcomeClass}">${trade.finalOutcome} (${(trade.plAmount / (state.equityCurve[trade.id - 1] || state.initialBalance) * 100).toFixed(2)}%)</h2></div><div class="image-gallery"><div class="image-container"><h3>Before</h3><img src="${trade.beforeImage || ''}" alt="Before Chart"></div><div class="image-container"><h3>After</h3><img src="${trade.afterImage || ''}" alt="After Chart"></div></div></div>`;
         });
-        reportHTML += `<div id="lightbox" class="lightbox"><span class="lightbox-close">&times;</span><img id="lightbox-image" src=""></div><script>const lightbox=document.getElementById("lightbox"),lightboxImage=document.getElementById("lightbox-image"),closeBtn=document.querySelector(".lightbox-close");document.querySelectorAll(".report-image").forEach(e=>{e.addEventListener("click",()=>{lightbox.style.display="flex",lightboxImage.src=e.src})});function closeLightbox(){lightbox.style.display="none"}closeBtn.addEventListener("click",closeLightbox),lightbox.addEventListener("click",e=>{e.target===lightbox&&closeLightbox()});<\/script></body></html>`;
-
+        reportHTML += `</body></html>`;
         const reportWindow = window.open();
         reportWindow.document.write(reportHTML);
         reportWindow.document.close();
