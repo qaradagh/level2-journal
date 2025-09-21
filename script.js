@@ -145,7 +145,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // CHANGED: Combined all preview box listeners into a reusable function
     function initializePreviewBox(box) {
         box.addEventListener('mouseover', () => box.focus());
         box.addEventListener('mouseout', () => box.blur());
@@ -186,7 +185,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // NEW: Initialize all preview boxes on the page
     document.querySelectorAll('.preview-box').forEach(initializePreviewBox);
 
 
@@ -385,7 +383,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // CHANGED: Added logic to populate image previews in edit modal
     function handleEditTrade(tradeId) {
         const trade = state.trades.find(t => t.id === tradeId);
         if (!trade) return;
@@ -402,7 +399,6 @@ document.addEventListener('DOMContentLoaded', () => {
         editBreakoutPipsEl.value = trade.breakoutPips;
         editTradeNotesEl.value = trade.notes;
         
-        // Populate images
         const beforePreview = document.getElementById('edit-before-preview');
         const afterPreview = document.getElementById('edit-after-preview');
         clearImage(beforePreview);
@@ -423,7 +419,6 @@ document.addEventListener('DOMContentLoaded', () => {
         editTradeModal.style.display = 'flex';
     }
 
-    // CHANGED: Added logic to read new image data when saving
     function handleSaveChanges() {
         const tradeId = parseInt(editTradeIdEl.value, 10);
         const trade = state.trades.find(t => t.id === tradeId);
