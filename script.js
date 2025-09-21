@@ -145,10 +145,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    document.querySelectorAll('.preview-box').forEach(box => {
+    // CHANGED: Combined all preview box listeners into a reusable function
+    function initializePreviewBox(box) {
         box.addEventListener('mouseover', () => box.focus());
         box.addEventListener('mouseout', () => box.blur());
         box.addEventListener('click', (e) => { 
+            if (e.target.classList.contains('clear-image-btn')) {
+                clearImage(box);
+                return;
+            }
             if (!box.classList.contains('has-image') && (e.target.classList.contains('preview-box') || e.target.tagName === 'SPAN')) {
                 document.getElementById(box.dataset.uploadTarget).click();
             }
@@ -172,15 +177,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
-    });
+        const uploadInput = document.getElementById(box.dataset.uploadTarget);
+        if (uploadInput) {
+            uploadInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) handleFile(file, box);
+            });
+        }
+    }
+    
+    // NEW: Initialize all preview boxes on the page
+    document.querySelectorAll('.preview-box').forEach(initializePreviewBox);
 
-    document.querySelectorAll('.image-upload').forEach(input => {
-        input.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            const previewBox = document.querySelector(`[data-upload-target="${e.target.id}"]`);
-            if (file && previewBox) handleFile(file, previewBox);
-        });
-    });
 
     // --- FUNCTIONS ---
     function applyTheme(theme) {
@@ -290,13 +298,13 @@ document.addEventListener('DOMContentLoaded', () => {
             state.trades.push(newTrade);
             showToast('Win trade added!');
         } else { 
-            const groupId = Date.now(); // Create a unique ID for the pair
+            const groupId = Date.now();
             
             const firstLeg = { ...commonDetails, outcome: 'loss', isRecoveryAttempt: false, groupId };
             state.trades.push(firstLeg);
             
             const recoveryOutcome = recoveryOutcomeEl.value;
-            const recoveryType = firstLeg.type === 'buy' ? 'sell' : 'buy'; // NEW: Reverse trade type
+            const recoveryType = firstLeg.type === 'buy' ? 'sell' : 'buy';
             const secondLeg = { ...commonDetails, type: recoveryType, outcome: recoveryOutcome, isRecoveryAttempt: true, groupId };
             state.trades.push(secondLeg);
             showToast('Recovery trade (2 legs) added!');
@@ -326,7 +334,6 @@ document.addEventListener('DOMContentLoaded', () => {
             row.dataset.tradeId = trade.id;
             const outcomeClass = trade.plAmount > 0 ? 'outcome-win' : 'outcome-loss';
             row.classList.add(outcomeClass);
-            // Add a class for recovery pairs for potential styling
             if(trade.groupId) {
                 row.classList.add('recovery-pair');
             }
@@ -362,7 +369,6 @@ document.addEventListener('DOMContentLoaded', () => {
         let tradesToDelete = [tradeToDelete];
         let confirmMessage = `Are you sure you want to delete Trade #${tradeToDelete.id}?`;
 
-        // If the trade is part of a recovery pair, delete both
         if (tradeToDelete.groupId) {
             tradesToDelete = state.trades.filter(t => t.groupId === tradeToDelete.groupId);
             const tradeIds = tradesToDelete.map(t => `#${t.id}`).join(' & ');
@@ -379,11 +385,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // CHANGED: Added logic to populate image previews in edit modal
     function handleEditTrade(tradeId) {
         const trade = state.trades.find(t => t.id === tradeId);
         if (!trade) return;
 
-        // Prevent editing of recovery trades
         if (trade.groupId) {
             showToast('Editing recovery pairs is not supported. Please delete and re-add.', 'error');
             return;
@@ -396,10 +402,28 @@ document.addEventListener('DOMContentLoaded', () => {
         editBreakoutPipsEl.value = trade.breakoutPips;
         editTradeNotesEl.value = trade.notes;
         
+        // Populate images
+        const beforePreview = document.getElementById('edit-before-preview');
+        const afterPreview = document.getElementById('edit-after-preview');
+        clearImage(beforePreview);
+        clearImage(afterPreview);
+
+        if (trade.beforeImage) {
+            beforePreview.style.backgroundImage = `url(${trade.beforeImage})`;
+            beforePreview.classList.add('has-image');
+            beforePreview.dataset.base64 = trade.beforeImage;
+        }
+        if (trade.afterImage) {
+            afterPreview.style.backgroundImage = `url(${trade.afterImage})`;
+            afterPreview.classList.add('has-image');
+            afterPreview.dataset.base64 = trade.afterImage;
+        }
+        
         updateDayOfWeek(editTradeDateEl, editDayOfWeekEl);
         editTradeModal.style.display = 'flex';
     }
 
+    // CHANGED: Added logic to read new image data when saving
     function handleSaveChanges() {
         const tradeId = parseInt(editTradeIdEl.value, 10);
         const trade = state.trades.find(t => t.id === tradeId);
@@ -411,6 +435,8 @@ document.addEventListener('DOMContentLoaded', () => {
         trade.stopLossPips = editStopLossPipsEl.value;
         trade.breakoutPips = editBreakoutPipsEl.value;
         trade.notes = editTradeNotesEl.value;
+        trade.beforeImage = document.getElementById('edit-before-preview').dataset.base64 || null;
+        trade.afterImage = document.getElementById('edit-after-preview').dataset.base64 || null;
         
         recalculateStateAfterChange();
         updateUI();
@@ -428,7 +454,7 @@ document.addEventListener('DOMContentLoaded', () => {
             trade.id = index + 1;
 
             const previousBalance = newEquityCurve[index];
-            const riskAmount = previousBalance * riskPercent;
+            const riskAmount = state.initialBalance * riskPercent;
             const rewardAmount = riskAmount * RRR;
             
             if (trade.outcome === 'win') {

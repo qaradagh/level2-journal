@@ -15,7 +15,7 @@
                     <path d="M12,22 C17.5228475,22 22,17.5228475 22,12 C22,6.4771525 17.5228475,2 12,2 C6.4771525,2 2,6.4771525 2,12 C2,17.5228475 6.4771525,22 12,22 Z M12,20 L12,4 C16.418278,4 20,7.581722 20,12 C20,16.418278 16.418278,20 12,20 Z"></path>
                 </svg>
             </button>
-            <h1>Level  2 Journal</h1>
+            <h1>Level 2 Journal</h1>
             <p>Your Personal Backtesting Dashboard</p>
         </header>
 
@@ -160,7 +160,7 @@
                  <label for="loadSessionInput" class="btn-secondary">Load Session</label>
                  <input type="file" id="loadSessionInput" style="display: none;" accept=".json">
             </div>
-            <p>Built for WooTrade, by Masiha with ❤︎.</p>
+            <p>Built for traders, by Masiha with ❤️.</p>
         </footer>
     </div>
     
@@ -218,6 +218,24 @@
                         <div class="form-group">
                             <label for="editBreakoutPips">Breakout (pips)</label>
                             <input type="number" id="editBreakoutPips">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group file-upload">
+                            <label>Before Chart</label>
+                            <input type="file" class="image-upload" id="edit-before-upload" accept="image/*" style="display: none;">
+                            <div class="preview-box" id="edit-before-preview" data-upload-target="edit-before-upload" tabindex="0">
+                                <span>Click, paste, or drop image</span>
+                                <button type="button" class="clear-image-btn" title="Clear Image">&times;</button>
+                            </div>
+                        </div>
+                        <div class="form-group file-upload">
+                            <label>After Chart</label>
+                            <input type="file" class="image-upload" id="edit-after-upload" accept="image/*" style="display: none;">
+                            <div class="preview-box" id="edit-after-preview" data-upload-target="edit-after-upload" tabindex="0">
+                                <span>Click, paste, or drop image</span>
+                                <button type="button" class="clear-image-btn" title="Clear Image">&times;</button>
+                            </div>
                         </div>
                     </div>
                     <div class="form-group">
