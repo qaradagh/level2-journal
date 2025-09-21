@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const dayOfWeekEl = document.getElementById('dayOfWeek');
     const outcomeEl = document.getElementById('outcome');
     const recoveryGroupEl = document.querySelector('.recovery-group');
+    const recoveryOutcomeEl = document.getElementById('recoveryOutcome');
     const tradeLogBody = document.querySelector('#tradeLog tbody');
     const totalTradesEl = document.getElementById('totalTrades');
     const winRateEl = document.getElementById('winRate');
@@ -41,6 +42,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const editStopLossPipsEl = document.getElementById('editStopLossPips');
     const editBreakoutPipsEl = document.getElementById('editBreakoutPips');
     const editTradeNotesEl = document.getElementById('editTradeNotes');
+    const overallPLPercentageEl = document.getElementById('overallPLPercentage');
+    const buyWinRateEl = document.getElementById('buyWinRate');
+    const sellWinRateEl = document.getElementById('sellWinRate');
 
 
     const ctx = document.getElementById('equityChart').getContext('2d');
@@ -60,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateDayOfWeek(tradeDateEl, dayOfWeekEl);
         localStorage.setItem('lastTradeDate', tradeDateEl.value);
     });
-    outcomeEl.addEventListener('change', () => { recoveryGroupEl.style.display = outcomeEl.value === 'loss' ? 'block' : 'none'; });
+    outcomeEl.addEventListener('change', () => { recoveryGroupEl.style.display = outcomeEl.value === 'loss' ? 'flex' : 'none'; });
     startSessionBtn.addEventListener('click', () => {
         if (state.trades.length > 0) {
             if (confirm('Are you sure you want to reset the session? All trade data will be lost.')) {
@@ -263,32 +267,49 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function addTrade() {
-        if (state.equityCurve.length === 0) { showToast('Please start a session first.', 'error'); return; }
-        
-        const trade = {
-            id: state.trades.length + 1,
-            date: document.getElementById('tradeDate').value,
-            day: new Date(document.getElementById('tradeDate').value).toLocaleString('en-US', { weekday: 'long', timeZone: 'UTC' }),
+        if (state.equityCurve.length === 0) { 
+            showToast('Please start a session first.', 'error'); 
+            return; 
+        }
+
+        const commonDetails = {
+            date: tradeDateEl.value,
+            day: new Date(tradeDateEl.value).toLocaleString('en-US', { weekday: 'long', timeZone: 'UTC' }),
             type: document.getElementById('tradeType').value, 
             breakoutPips: document.getElementById('breakoutPips').value,
             stopLossPips: document.getElementById('stopLossPips').value,
-            initialOutcome: document.getElementById('outcome').value,
-            recoveryOutcome: document.getElementById('outcome').value === 'loss' ? document.getElementById('recoveryOutcome').value : null,
             notes: document.getElementById('tradeNotes').value,
             beforeImage: document.getElementById('before-preview').dataset.base64 || null,
-            afterImage: document.getElementById('after-preview').dataset.base64 || null
+            afterImage: document.getElementById('after-preview').dataset.base64 || null,
         };
-        
-        state.trades.push(trade);
+
+        const initialOutcome = outcomeEl.value;
+
+        if (initialOutcome === 'win') {
+            const newTrade = { ...commonDetails, outcome: 'win' };
+            state.trades.push(newTrade);
+            showToast('Win trade added!');
+        } else { 
+            const groupId = Date.now(); // Create a unique ID for the pair
+            
+            const firstLeg = { ...commonDetails, outcome: 'loss', isRecoveryAttempt: false, groupId };
+            state.trades.push(firstLeg);
+            
+            const recoveryOutcome = recoveryOutcomeEl.value;
+            const recoveryType = firstLeg.type === 'buy' ? 'sell' : 'buy'; // NEW: Reverse trade type
+            const secondLeg = { ...commonDetails, type: recoveryType, outcome: recoveryOutcome, isRecoveryAttempt: true, groupId };
+            state.trades.push(secondLeg);
+            showToast('Recovery trade (2 legs) added!');
+        }
+
         recalculateStateAfterChange();
-        
         updateUI();
+        
         tradeForm.reset();
         document.querySelectorAll('.preview-box').forEach(box => clearImage(box));
         dayOfWeekEl.value = '';
-        document.querySelector('.recovery-group').style.display = 'none';
+        recoveryGroupEl.style.display = 'none';
         loadLastDate();
-        showToast('Trade added successfully!');
     }
 
     function updateUI() {
@@ -305,6 +326,10 @@ document.addEventListener('DOMContentLoaded', () => {
             row.dataset.tradeId = trade.id;
             const outcomeClass = trade.plAmount > 0 ? 'outcome-win' : 'outcome-loss';
             row.classList.add(outcomeClass);
+            // Add a class for recovery pairs for potential styling
+            if(trade.groupId) {
+                row.classList.add('recovery-pair');
+            }
             row.innerHTML = `
                 <td>${trade.id}</td>
                 <td>${trade.date}</td>
@@ -331,21 +356,38 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleDeleteTrade(tradeId) {
-        const tradeIndex = state.trades.findIndex(t => t.id === tradeId);
-        if (tradeIndex === -1) return;
+        const tradeToDelete = state.trades.find(t => t.id === tradeId);
+        if (!tradeToDelete) return;
 
-        const tradeInfo = state.trades[tradeIndex];
-        if (confirm(`Are you sure you want to delete Trade #${tradeInfo.id} on ${tradeInfo.date}?`)) {
-            state.trades.splice(tradeIndex, 1);
+        let tradesToDelete = [tradeToDelete];
+        let confirmMessage = `Are you sure you want to delete Trade #${tradeToDelete.id}?`;
+
+        // If the trade is part of a recovery pair, delete both
+        if (tradeToDelete.groupId) {
+            tradesToDelete = state.trades.filter(t => t.groupId === tradeToDelete.groupId);
+            const tradeIds = tradesToDelete.map(t => `#${t.id}`).join(' & ');
+            confirmMessage = `This is a recovery pair. Are you sure you want to delete trades ${tradeIds}?`;
+        }
+
+        if (confirm(confirmMessage)) {
+            const idsToDelete = tradesToDelete.map(t => t.id);
+            state.trades = state.trades.filter(t => !idsToDelete.includes(t.id));
+            
             recalculateStateAfterChange();
             updateUI();
-            showToast('Trade deleted successfully.', 'info');
+            showToast('Trade(s) deleted successfully.', 'info');
         }
     }
 
     function handleEditTrade(tradeId) {
         const trade = state.trades.find(t => t.id === tradeId);
         if (!trade) return;
+
+        // Prevent editing of recovery trades
+        if (trade.groupId) {
+            showToast('Editing recovery pairs is not supported. Please delete and re-add.', 'error');
+            return;
+        }
 
         editTradeIdEl.value = trade.id;
         editTradeDateEl.value = trade.date;
@@ -388,28 +430,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const previousBalance = newEquityCurve[index];
             const riskAmount = previousBalance * riskPercent;
             const rewardAmount = riskAmount * RRR;
-            let totalPL = 0;
-
-            if (trade.initialOutcome === 'win') {
-                totalPL = rewardAmount;
-                trade.finalOutcome = 'Win';
-            } else { // 'loss'
-                if (trade.recoveryOutcome === 'win') {
-                    totalPL = -riskAmount + rewardAmount;
-                    trade.finalOutcome = 'Recovery Win';
-                } else {
-                    totalPL = -riskAmount;
-                    trade.finalOutcome = 'Loss';
-                }
+            
+            if (trade.outcome === 'win') {
+                trade.plAmount = rewardAmount;
+                trade.finalOutcome = trade.isRecoveryAttempt ? 'Recovery Win' : 'Win';
+            } else { 
+                trade.plAmount = -riskAmount;
+                trade.finalOutcome = trade.isRecoveryAttempt ? 'Recovery Loss' : 'Loss';
             }
             
-            trade.plAmount = totalPL;
-            trade.newBalance = previousBalance + totalPL;
+            trade.newBalance = previousBalance + trade.plAmount;
             newEquityCurve.push(trade.newBalance);
         });
         
         state.equityCurve = newEquityCurve;
     }
+
 
     function calculateStreaks(trades) {
         let maxWinStreak = 0, maxLossStreak = 0;
@@ -430,7 +466,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function calculateMetrics() {
         const numTrades = state.trades.length;
-        const safeInitialBalance = state.initialBalance || 0;
+        const safeInitialBalance = state.initialBalance || 1;
         
         if (numTrades === 0) {
             totalTradesEl.textContent = '0';
@@ -438,25 +474,51 @@ document.addEventListener('DOMContentLoaded', () => {
             profitFactorEl.textContent = 'N/A';
             maxWinStreakEl.textContent = 'N/A';
             maxLossStreakEl.textContent = 'N/A';
-            currentBalanceEl.textContent = safeInitialBalance.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+            currentBalanceEl.textContent = (state.initialBalance || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+            overallPLPercentageEl.textContent = 'N/A';
+            overallPLPercentageEl.className = '';
+            buyWinRateEl.textContent = 'N/A';
+            sellWinRateEl.textContent = 'N/A';
             return;
         }
 
         let wins = 0; let totalProfit = 0; let totalLoss = 0;
+        let buyTrades = 0, buyWins = 0, sellTrades = 0, sellWins = 0;
+
         state.trades.forEach(trade => {
-            if (trade.plAmount > 0) { wins++; totalProfit += trade.plAmount; } 
-            else { totalLoss += Math.abs(trade.plAmount); }
+            if (trade.plAmount > 0) { 
+                wins++; 
+                totalProfit += trade.plAmount;
+            } else { 
+                totalLoss += Math.abs(trade.plAmount);
+            }
+            if (trade.type === 'buy') {
+                buyTrades++;
+                if(trade.plAmount > 0) buyWins++;
+            } else { 
+                sellTrades++;
+                if(trade.plAmount > 0) sellWins++;
+            }
         });
         
         const { maxWinStreak, maxLossStreak } = calculateStreaks(state.trades);
+        const currentBalance = state.equityCurve.length > 1 ? state.equityCurve[state.equityCurve.length - 1] : state.initialBalance;
         
         totalTradesEl.textContent = numTrades;
         winRateEl.textContent = `${((wins / numTrades) * 100).toFixed(2)}%`;
         profitFactorEl.textContent = totalLoss !== 0 ? (totalProfit / totalLoss).toFixed(2) : 'Infinity';
         maxWinStreakEl.textContent = maxWinStreak;
         maxLossStreakEl.textContent = maxLossStreak;
-        currentBalanceEl.textContent = state.equityCurve[state.equityCurve.length - 1].toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+        currentBalanceEl.textContent = currentBalance.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+        
+        const plPercentage = ((currentBalance - safeInitialBalance) / safeInitialBalance) * 100;
+        overallPLPercentageEl.textContent = `${plPercentage.toFixed(2)}%`;
+        overallPLPercentageEl.className = plPercentage >= 0 ? 'positive' : 'negative';
+
+        buyWinRateEl.textContent = buyTrades > 0 ? `${((buyWins / buyTrades) * 100).toFixed(1)}%` : 'N/A';
+        sellWinRateEl.textContent = sellTrades > 0 ? `${((sellWins / sellTrades) * 100).toFixed(1)}%` : 'N/A';
     }
+
 
     function renderDailyWinRates() {
         dailyWinRateContainerEl.innerHTML = '';
@@ -506,13 +568,50 @@ document.addEventListener('DOMContentLoaded', () => {
         const reader = new FileReader();
         reader.onload = (e) => {
             try {
-                state = JSON.parse(e.target.result);
-                if(!state.equityCurve) recalculateStateAfterChange();
+                const loadedState = JSON.parse(e.target.result);
+                
+                if (loadedState.trades.length > 0 && loadedState.trades[0].hasOwnProperty('initialOutcome')) {
+                    const migratedTrades = [];
+                    loadedState.trades.forEach(trade => {
+                        const commonDetails = { ...trade };
+                        delete commonDetails.initialOutcome;
+                        delete commonDetails.recoveryOutcome;
+                        delete commonDetails.finalOutcome;
+                        delete commonDetails.plAmount;
+                        delete commonDetails.newBalance;
+                        const groupId = Date.now() + Math.random();
+
+                        if (trade.finalOutcome === 'Recovery Win') {
+                            migratedTrades.push({ ...commonDetails, outcome: 'loss', isRecoveryAttempt: false, groupId });
+                            const recoveryType = commonDetails.type === 'buy' ? 'sell' : 'buy';
+                            migratedTrades.push({ ...commonDetails, type: recoveryType, outcome: 'win', isRecoveryAttempt: true, groupId });
+                        } else if (trade.finalOutcome === 'Recovery Loss' || trade.finalOutcome === 'Loss') {
+                             migratedTrades.push({ ...commonDetails, outcome: 'loss', isRecoveryAttempt: false, groupId });
+                             const recoveryType = commonDetails.type === 'buy' ? 'sell' : 'buy';
+                             migratedTrades.push({ ...commonDetails, type: recoveryType, outcome: 'loss', isRecoveryAttempt: true, groupId });
+                        } else {
+                            migratedTrades.push({ ...commonDetails, outcome: trade.initialOutcome });
+                        }
+                    });
+                    state.trades = migratedTrades;
+                    showToast('Old session file converted to new format.', 'info');
+                } else {
+                    state.trades = loadedState.trades;
+                }
+                
+                state.initialBalance = loadedState.initialBalance;
+                state.riskPercentage = loadedState.riskPercentage;
+
                 initialBalanceEl.value = state.initialBalance;
                 riskPercentageEl.value = state.riskPercentage;
+                
+                recalculateStateAfterChange();
                 updateUI();
                 showToast('Session loaded successfully!');
-            } catch (error) { showToast('Failed to load session file.', 'error'); }
+            } catch (error) { 
+                console.error("Failed to load session:", error);
+                showToast('Failed to load session file. It may be corrupted.', 'error'); 
+            }
         };
         reader.readAsText(file);
     }
