@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveSessionBtn = document.getElementById('saveSessionBtn');
     const loadSessionInput = document.getElementById('loadSessionInput');
     const exportCsvBtn = document.getElementById('exportCsvBtn');
+    const exportPdfBtn = document.getElementById('exportPdfBtn'); // NEW
     const imageModal = document.getElementById('imageModal');
     const modalTradeTitle = document.getElementById('modal-trade-title');
     const modalBeforeImg = document.getElementById('modal-before-img');
@@ -80,6 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
     saveSessionBtn.addEventListener('click', saveSession);
     loadSessionInput.addEventListener('change', loadSession);
     exportCsvBtn.addEventListener('click', exportToCSV);
+    exportPdfBtn.addEventListener('click', generatePDFReport); // NEW
     generateReportBtn.addEventListener('click', generateVisualReport);
     
     tradeLogBody.addEventListener('click', (e) => {
@@ -650,6 +652,102 @@ document.addEventListener('DOMContentLoaded', () => {
         link.setAttribute("download", `level2-journal-export-${new Date().toISOString().slice(0, 10)}.csv`);
         link.click();
     }
+
+    // NEW: Function to generate the comprehensive PDF report
+    async function generatePDFReport() {
+        if (state.trades.length === 0) {
+            showToast("No trades to generate a report for.", 'error');
+            return;
+        }
+
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const reportContainer = document.getElementById('pdf-report-container');
+        const isLightMode = document.body.classList.contains('light-mode');
+        
+        // Temporarily switch to light mode for better printing contrast
+        if (!isLightMode) {
+            document.body.classList.add('light-mode');
+        }
+
+        showToast('Generating PDF Report... Please wait.', 'info');
+
+        // 1. Create the HTML content for the report
+        let reportHTML = `
+            <div class="pdf-page">
+                <h1>Backtesting Report</h1>
+                <p class="report-date">Generated on: ${new Date().toLocaleDateString()}</p>
+                
+                <h2>Performance Summary</h2>
+                <div class="pdf-metrics">
+                    ${document.getElementById('metrics').innerHTML}
+                </div>
+                
+                <h2>Equity Curve</h2>
+                <img src="${equityChart.toBase64Image()}" class="equity-chart-img" />
+
+                <h2>Trade Log</h2>
+            </div>
+        `;
+
+        state.trades.forEach(trade => {
+            reportHTML += `
+            <div class="pdf-page trade-card-pdf">
+                 <h3>Trade #${trade.id} - ${trade.date}</h3>
+                 <div class="trade-details-pdf">
+                    <p><strong>Type:</strong> ${trade.type}</p>
+                    <p><strong>Outcome:</strong> ${trade.finalOutcome}</p>
+                    <p><strong>P/L:</strong> $${trade.plAmount.toFixed(2)}</p>
+                 </div>
+                 <div class="image-gallery-pdf">
+                    ${trade.beforeImage ? `<div><h4>Before</h4><img src="${trade.beforeImage}"/></div>` : ''}
+                    ${trade.afterImage ? `<div><h4>After</h4><img src="${trade.afterImage}"/></div>` : ''}
+                 </div>
+                 <p class="notes-pdf"><strong>Notes:</strong> ${trade.notes || 'N/A'}</p>
+            </div>
+            `;
+        });
+        
+        reportContainer.innerHTML = reportHTML;
+        reportContainer.style.display = 'block';
+
+        // 2. Use html2canvas to render the HTML content
+        const canvas = await html2canvas(reportContainer, { 
+            scale: 2,
+            useCORS: true,
+            backgroundColor: isLightMode ? '#f0f2f5' : '#ffffff' // Ensure background is not transparent
+        });
+
+        // 3. Add the rendered content as an image to the PDF
+        const imgData = canvas.toDataURL('image/png');
+        const imgProps = pdf.getImageProperties(imgData);
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        let heightLeft = pdfHeight;
+        let position = 0;
+
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+        heightLeft -= pdf.internal.pageSize.getHeight();
+
+        while (heightLeft >= 0) {
+            position = heightLeft - pdfHeight;
+            pdf.addPage();
+            pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+            heightLeft -= pdf.internal.pageSize.getHeight();
+        }
+
+        // 4. Save the PDF
+        pdf.save(`level2-journal-report-${new Date().toISOString().slice(0, 10)}.pdf`);
+        
+        // Cleanup
+        reportContainer.style.display = 'none';
+        reportContainer.innerHTML = '';
+        if (!isLightMode) {
+            document.body.classList.remove('light-mode');
+        }
+        showToast('PDF report generated successfully!');
+    }
+
 
     function generateVisualReport() {
         if (state.trades.length === 0) { showToast("No trades to generate a report for.", 'error'); return; }

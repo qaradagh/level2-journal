@@ -6,6 +6,8 @@
     <title>Level 2 Journal - Backtesting Platform</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -155,6 +157,7 @@
         <footer>
             <div class="data-buttons">
                  <button id="exportCsvBtn" class="btn-secondary">Export to CSV</button>
+                 <button id="exportPdfBtn" class="btn-secondary">Export to PDF</button>
                  <button id="saveSessionBtn" class="btn-secondary">Save Session</button>
                  <button id="generateReportBtn" class="btn-secondary">Generate Visual Report</button>
                  <label for="loadSessionInput" class="btn-secondary">Load Session</label>
@@ -251,6 +254,7 @@
     </div>
 
     <div id="toastContainer"></div>
+    <div id="pdf-report-container" style="display: none;"></div>
     <script src="script.js"></script>
 </body>
 </html>
