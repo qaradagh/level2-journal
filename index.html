@@ -49,7 +49,10 @@
                         </div>
                         <div class="form-group">
                             <label for="tradeType">Trade Type</label>
-                            <select id="tradeType" required><option value="buy">Low Hunt (Buy)</option><option value="sell">High Hunt (Sell)</option></select>
+                            <select id="tradeType" required>
+                                <option value="sell">High Hunt (Sell)</option>
+                                <option value="buy">Low Hunt (Buy)</option>
+                            </select>
                         </div>
                          <div class="form-group">
                             <label for="stopLossPips">Stop Loss (pips)</label>
@@ -137,6 +140,7 @@
                                 <th>Balance ($)</th>
                                 <th>Charts</th>
                                 <th>Notes</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
@@ -153,7 +157,7 @@
                  <label for="loadSessionInput" class="btn-secondary">Load Session</label>
                  <input type="file" id="loadSessionInput" style="display: none;" accept=".json">
             </div>
-            <p>Built for traders, by Masiha with ❤️.</p>
+            <p>Built for traders, by Masiha with ❤︎.</p>
         </footer>
     </div>
     
@@ -174,6 +178,54 @@
                 </div>
             </div>
             <div class="modal-footer" id="modal-trade-details"></div>
+        </div>
+    </div>
+    
+    <div id="editTradeModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="edit-modal-title">Edit Trade</h2>
+                <span class="close-button">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="editTradeForm" class="modal-form">
+                    <input type="hidden" id="editTradeId">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editTradeDate">Date</label>
+                            <input type="date" id="editTradeDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="editDayOfWeek">Day</label>
+                            <input type="text" id="editDayOfWeek" readonly>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editTradeType">Trade Type</label>
+                            <select id="editTradeType" required>
+                                <option value="sell">High Hunt (Sell)</option>
+                                <option value="buy">Low Hunt (Buy)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="editStopLossPips">Stop Loss (pips)</label>
+                            <input type="number" id="editStopLossPips" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="editBreakoutPips">Breakout (pips)</label>
+                            <input type="number" id="editBreakoutPips">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="editTradeNotes">Notes</label>
+                        <textarea id="editTradeNotes" rows="3"></textarea>
+                    </div>
+                    <div class="modal-form-actions">
+                        <button type="submit" class="btn">Save Changes</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 

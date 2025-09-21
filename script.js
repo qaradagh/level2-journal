@@ -27,10 +27,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalTradeTitle = document.getElementById('modal-trade-title');
     const modalBeforeImg = document.getElementById('modal-before-img');
     const modalAfterImg = document.getElementById('modal-after-img');
-    const closeModalBtn = document.querySelector('.close-button');
+    const closeModalBtn = document.querySelector('#imageModal .close-button');
     const modalTradeDetailsEl = document.getElementById('modal-trade-details');
     const generateReportBtn = document.getElementById('generateReportBtn');
     const entrySection = document.querySelector('.entry-section');
+    const editTradeModal = document.getElementById('editTradeModal');
+    const closeEditModalBtn = document.querySelector('#editTradeModal .close-button');
+    const editTradeForm = document.getElementById('editTradeForm');
+    const editTradeIdEl = document.getElementById('editTradeId');
+    const editTradeDateEl = document.getElementById('editTradeDate');
+    const editDayOfWeekEl = document.getElementById('editDayOfWeek');
+    const editTradeTypeEl = document.getElementById('editTradeType');
+    const editStopLossPipsEl = document.getElementById('editStopLossPips');
+    const editBreakoutPipsEl = document.getElementById('editBreakoutPips');
+    const editTradeNotesEl = document.getElementById('editTradeNotes');
+
 
     const ctx = document.getElementById('equityChart').getContext('2d');
     let equityChart = new Chart(ctx, {
@@ -46,7 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- EVENT LISTENERS ---
     themeToggleBtn.addEventListener('click', toggleTheme);
     tradeDateEl.addEventListener('change', () => {
-        updateDayOfWeek();
+        updateDayOfWeek(tradeDateEl, dayOfWeekEl);
         localStorage.setItem('lastTradeDate', tradeDateEl.value);
     });
     outcomeEl.addEventListener('change', () => { recoveryGroupEl.style.display = outcomeEl.value === 'loss' ? 'block' : 'none'; });
@@ -66,17 +77,30 @@ document.addEventListener('DOMContentLoaded', () => {
     loadSessionInput.addEventListener('change', loadSession);
     exportCsvBtn.addEventListener('click', exportToCSV);
     generateReportBtn.addEventListener('click', generateVisualReport);
+    
     tradeLogBody.addEventListener('click', (e) => {
-        const row = e.target.closest('tr');
-        if (!row) return;
-        const tradeId = parseInt(row.dataset.tradeId, 10);
+        const target = e.target;
+        const viewRow = target.closest('tr');
+        if (!viewRow) return;
+        const tradeId = parseInt(viewRow.dataset.tradeId, 10);
+
+        if (target.closest('.action-btn.delete')) {
+            handleDeleteTrade(tradeId);
+            return;
+        }
+
+        if (target.closest('.action-btn.edit')) {
+            handleEditTrade(tradeId);
+            return;
+        }
+        
         const trade = state.trades.find(t => t.id === tradeId);
         if (trade && trade.beforeImage && trade.afterImage) {
             modalTradeTitle.textContent = `Trade #${trade.id} - ${trade.date}`;
             modalBeforeImg.src = trade.beforeImage;
             modalAfterImg.src = trade.afterImage;
 
-            const initialBalanceForTrade = trade.id > 1 ? state.equityCurve[trade.id - 1] : state.initialBalance;
+            const initialBalanceForTrade = trade.id > 1 ? state.equityCurve[trade.id - 2] : state.initialBalance;
             const percentagePL = (trade.plAmount / initialBalanceForTrade) * 100;
             const outcomeClass = trade.plAmount > 0 ? 'outcome-win' : 'outcome-loss';
 
@@ -97,8 +121,18 @@ document.addEventListener('DOMContentLoaded', () => {
             imageModal.style.display = 'flex';
         }
     });
+
     closeModalBtn.addEventListener('click', () => { imageModal.style.display = 'none'; });
     window.addEventListener('click', (e) => { if (e.target === imageModal) imageModal.style.display = 'none'; });
+    closeEditModalBtn.addEventListener('click', () => { editTradeModal.style.display = 'none'; });
+    window.addEventListener('click', (e) => { if (e.target === editTradeModal) editTradeModal.style.display = 'none'; });
+    
+    editTradeForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        handleSaveChanges();
+    });
+    editTradeDateEl.addEventListener('change', () => updateDayOfWeek(editTradeDateEl, editDayOfWeekEl));
+
 
     entrySection.addEventListener('click', (e) => {
         if (e.target.classList.contains('clear-image-btn')) {
@@ -187,18 +221,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const lastDate = localStorage.getItem('lastTradeDate');
         if (lastDate) {
             tradeDateEl.value = lastDate;
-            updateDayOfWeek();
+            updateDayOfWeek(tradeDateEl, dayOfWeekEl);
         }
     }
-
-    function updateDayOfWeek() {
-        if (!tradeDateEl.value) {
-            dayOfWeekEl.value = '';
+    
+    function updateDayOfWeek(dateInput, dayOutput) {
+        if (!dateInput.value) {
+            dayOutput.value = '';
             return;
         }
-        const date = new Date(tradeDateEl.value);
+        const date = new Date(dateInput.value);
         const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
-        dayOfWeekEl.value = dayOfWeek;
+        dayOutput.value = dayOfWeek;
     }
 
     function clearImage(previewBox) {
@@ -230,39 +264,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function addTrade() {
         if (state.equityCurve.length === 0) { showToast('Please start a session first.', 'error'); return; }
-        const currentBalance = state.equityCurve[state.equityCurve.length - 1];
         
         const trade = {
-            id: state.trades.length + 1, date: document.getElementById('tradeDate').value,
+            id: state.trades.length + 1,
+            date: document.getElementById('tradeDate').value,
             day: new Date(document.getElementById('tradeDate').value).toLocaleString('en-US', { weekday: 'long', timeZone: 'UTC' }),
             type: document.getElementById('tradeType').value, 
             breakoutPips: document.getElementById('breakoutPips').value,
-            stopLossPips: document.getElementById('stopLossPips').value, initialOutcome: document.getElementById('outcome').value,
-            recoveryOutcome: document.getElementById('recoveryOutcome').value, notes: document.getElementById('tradeNotes').value,
+            stopLossPips: document.getElementById('stopLossPips').value,
+            initialOutcome: document.getElementById('outcome').value,
+            recoveryOutcome: document.getElementById('outcome').value === 'loss' ? document.getElementById('recoveryOutcome').value : null,
+            notes: document.getElementById('tradeNotes').value,
             beforeImage: document.getElementById('before-preview').dataset.base64 || null,
             afterImage: document.getElementById('after-preview').dataset.base64 || null
         };
         
-        const RRR = 2.0;
-        const riskAmount = currentBalance * (state.riskPercentage / 100);
-        const rewardAmount = riskAmount * RRR;
-        let totalPL = 0;
-
-        if (trade.initialOutcome === 'win') {
-            totalPL = rewardAmount; trade.finalOutcome = 'Win';
-        } else {
-            totalPL = -riskAmount;
-            if (document.getElementById('outcome').value === 'loss' && trade.recoveryOutcome === 'win') {
-                totalPL += rewardAmount; trade.finalOutcome = 'Recovery Win';
-            } else {
-                totalPL -= riskAmount; trade.finalOutcome = 'Recovery Loss';
-            }
-        }
-        
-        trade.plAmount = totalPL;
-        trade.newBalance = currentBalance + totalPL;
         state.trades.push(trade);
-        state.equityCurve.push(trade.newBalance);
+        recalculateStateAfterChange();
         
         updateUI();
         tradeForm.reset();
@@ -298,9 +316,99 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td class="${outcomeClass}">${trade.plAmount.toFixed(2)}</td>
                 <td>${trade.newBalance.toFixed(2)}</td>
                 <td>${trade.beforeImage && trade.afterImage ? 'Yes' : 'No'}</td>
-                <td>${trade.notes || 'N/A'}</td>`;
+                <td>${trade.notes || 'N/A'}</td>
+                <td class="actions-cell">
+                    <button class="action-btn edit" title="Edit Trade">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.13,5.12L18.88,8.87M3,17.25V21H6.75L17.81,9.94L14.06,6.19L3,17.25Z"></path></svg>
+                    </button>
+                    <button class="action-btn delete" title="Delete Trade">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"></path></svg>
+                    </button>
+                </td>
+            `;
             tradeLogBody.appendChild(row);
         });
+    }
+
+    function handleDeleteTrade(tradeId) {
+        const tradeIndex = state.trades.findIndex(t => t.id === tradeId);
+        if (tradeIndex === -1) return;
+
+        const tradeInfo = state.trades[tradeIndex];
+        if (confirm(`Are you sure you want to delete Trade #${tradeInfo.id} on ${tradeInfo.date}?`)) {
+            state.trades.splice(tradeIndex, 1);
+            recalculateStateAfterChange();
+            updateUI();
+            showToast('Trade deleted successfully.', 'info');
+        }
+    }
+
+    function handleEditTrade(tradeId) {
+        const trade = state.trades.find(t => t.id === tradeId);
+        if (!trade) return;
+
+        editTradeIdEl.value = trade.id;
+        editTradeDateEl.value = trade.date;
+        editTradeTypeEl.value = trade.type;
+        editStopLossPipsEl.value = trade.stopLossPips;
+        editBreakoutPipsEl.value = trade.breakoutPips;
+        editTradeNotesEl.value = trade.notes;
+        
+        updateDayOfWeek(editTradeDateEl, editDayOfWeekEl);
+        editTradeModal.style.display = 'flex';
+    }
+
+    function handleSaveChanges() {
+        const tradeId = parseInt(editTradeIdEl.value, 10);
+        const trade = state.trades.find(t => t.id === tradeId);
+        if (!trade) return;
+
+        trade.date = editTradeDateEl.value;
+        trade.day = new Date(trade.date).toLocaleString('en-US', { weekday: 'long', timeZone: 'UTC' });
+        trade.type = editTradeTypeEl.value;
+        trade.stopLossPips = editStopLossPipsEl.value;
+        trade.breakoutPips = editBreakoutPipsEl.value;
+        trade.notes = editTradeNotesEl.value;
+        
+        recalculateStateAfterChange();
+        updateUI();
+
+        editTradeModal.style.display = 'none';
+        showToast('Trade updated successfully!');
+    }
+
+    function recalculateStateAfterChange() {
+        const newEquityCurve = [state.initialBalance];
+        const riskPercent = state.riskPercentage / 100;
+        const RRR = 2.0;
+
+        state.trades.forEach((trade, index) => {
+            trade.id = index + 1;
+
+            const previousBalance = newEquityCurve[index];
+            const riskAmount = previousBalance * riskPercent;
+            const rewardAmount = riskAmount * RRR;
+            let totalPL = 0;
+
+            if (trade.initialOutcome === 'win') {
+                totalPL = rewardAmount;
+                trade.finalOutcome = 'Win';
+            } else { // 'loss'
+                if (trade.recoveryOutcome === 'win') {
+                    totalPL = -riskAmount + rewardAmount;
+                    trade.finalOutcome = 'Recovery Win';
+                } else {
+                    totalPL = -riskAmount;
+                    trade.finalOutcome = 'Loss';
+                }
+            }
+            
+            trade.plAmount = totalPL;
+            trade.newBalance = previousBalance + totalPL;
+            newEquityCurve.push(trade.newBalance);
+        });
+        
+        state.equityCurve = newEquityCurve;
     }
 
     function calculateStreaks(trades) {
@@ -337,14 +445,14 @@ document.addEventListener('DOMContentLoaded', () => {
         let wins = 0; let totalProfit = 0; let totalLoss = 0;
         state.trades.forEach(trade => {
             if (trade.plAmount > 0) { wins++; totalProfit += trade.plAmount; } 
-            else { totalLoss += trade.plAmount; }
+            else { totalLoss += Math.abs(trade.plAmount); }
         });
         
         const { maxWinStreak, maxLossStreak } = calculateStreaks(state.trades);
         
         totalTradesEl.textContent = numTrades;
         winRateEl.textContent = `${((wins / numTrades) * 100).toFixed(2)}%`;
-        profitFactorEl.textContent = totalLoss !== 0 ? Math.abs(totalProfit / totalLoss).toFixed(2) : 'Infinity';
+        profitFactorEl.textContent = totalLoss !== 0 ? (totalProfit / totalLoss).toFixed(2) : 'Infinity';
         maxWinStreakEl.textContent = maxWinStreak;
         maxLossStreakEl.textContent = maxLossStreak;
         currentBalanceEl.textContent = state.equityCurve[state.equityCurve.length - 1].toLocaleString('en-US', { style: 'currency', currency: 'USD' });
@@ -399,6 +507,7 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.onload = (e) => {
             try {
                 state = JSON.parse(e.target.result);
+                if(!state.equityCurve) recalculateStateAfterChange();
                 initialBalanceEl.value = state.initialBalance;
                 riskPercentageEl.value = state.riskPercentage;
                 updateUI();
@@ -410,7 +519,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function exportToCSV() {
         if(state.trades.length === 0) { showToast("No trades to export.", 'error'); return; }
-        // CHANGED: Renamed header in CSV export
         const headers = ["ID", "Date", "Day", "Type", "Stop Loss", "Breakout (pips)", "Outcome", "P/L ($)", "New Balance", "Notes"];
         let csvContent = headers.join(",") + "\r\n";
         state.trades.forEach(trade => {
@@ -479,7 +587,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         state.trades.forEach(trade => {
             const outcomeClass = trade.plAmount > 0 ? 'outcome-win' : 'outcome-loss';
-            const initialBalanceForTrade = state.trades.length > 1 && trade.id > 1 ? state.equityCurve[trade.id - 1] : state.initialBalance;
+            const initialBalanceForTrade = trade.id > 1 ? state.equityCurve[trade.id - 2] : state.initialBalance;
             const percentagePL = (trade.plAmount / initialBalanceForTrade) * 100;
 
             reportHTML += `
