@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveSessionBtn = document.getElementById('saveSessionBtn');
     const loadSessionInput = document.getElementById('loadSessionInput');
     const exportCsvBtn = document.getElementById('exportCsvBtn');
-    const exportPdfBtn = document.getElementById('exportPdfBtn'); // NEW
+    const exportPdfBtn = document.getElementById('exportPdfBtn');
     const imageModal = document.getElementById('imageModal');
     const modalTradeTitle = document.getElementById('modal-trade-title');
     const modalBeforeImg = document.getElementById('modal-before-img');
@@ -81,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
     saveSessionBtn.addEventListener('click', saveSession);
     loadSessionInput.addEventListener('change', loadSession);
     exportCsvBtn.addEventListener('click', exportToCSV);
-    exportPdfBtn.addEventListener('click', generatePDFReport); // NEW
+    exportPdfBtn.addEventListener('click', generatePDFReport);
     generateReportBtn.addEventListener('click', generateVisualReport);
     
     tradeLogBody.addEventListener('click', (e) => {
@@ -653,7 +653,6 @@ document.addEventListener('DOMContentLoaded', () => {
         link.click();
     }
 
-    // NEW: Function to generate the comprehensive PDF report
     async function generatePDFReport() {
         if (state.trades.length === 0) {
             showToast("No trades to generate a report for.", 'error');
@@ -665,14 +664,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const reportContainer = document.getElementById('pdf-report-container');
         const isLightMode = document.body.classList.contains('light-mode');
         
-        // Temporarily switch to light mode for better printing contrast
         if (!isLightMode) {
             document.body.classList.add('light-mode');
         }
 
         showToast('Generating PDF Report... Please wait.', 'info');
 
-        // 1. Create the HTML content for the report
         let reportHTML = `
             <div class="pdf-page">
                 <h1>Backtesting Report</h1>
@@ -711,14 +708,12 @@ document.addEventListener('DOMContentLoaded', () => {
         reportContainer.innerHTML = reportHTML;
         reportContainer.style.display = 'block';
 
-        // 2. Use html2canvas to render the HTML content
         const canvas = await html2canvas(reportContainer, { 
             scale: 2,
             useCORS: true,
-            backgroundColor: isLightMode ? '#f0f2f5' : '#ffffff' // Ensure background is not transparent
+            backgroundColor: isLightMode ? '#f0f2f5' : '#ffffff'
         });
 
-        // 3. Add the rendered content as an image to the PDF
         const imgData = canvas.toDataURL('image/png');
         const imgProps = pdf.getImageProperties(imgData);
         const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -736,10 +731,8 @@ document.addEventListener('DOMContentLoaded', () => {
             heightLeft -= pdf.internal.pageSize.getHeight();
         }
 
-        // 4. Save the PDF
         pdf.save(`level2-journal-report-${new Date().toISOString().slice(0, 10)}.pdf`);
         
-        // Cleanup
         reportContainer.style.display = 'none';
         reportContainer.innerHTML = '';
         if (!isLightMode) {
@@ -847,7 +840,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const prevButton = document.getElementById('lightbox-prev');
                 const nextButton = document.getElementById('lightbox-next');
                 const closeButton = document.querySelector('.lightbox-close');
-                const images = document.querySelectorAll('.lightbox-image');
+                const images = document.querySelectorAll('.image-image');
                 let currentIndex = 0;
 
                 function showImage(index) {
