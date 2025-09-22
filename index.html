@@ -119,6 +119,7 @@
                         <p>Overall P/L: <span id="overallPLPercentage">N/A</span></p>
                         <p>Buy Win Rate: <span id="buyWinRate">N/A</span></p>
                         <p>Sell Win Rate: <span id="sellWinRate">N/A</span></p>
+                        <p>Initial Balance: <span id="initialBalanceDisplay">$0.00</span></p>
                         <p>Current Balance: <span id="currentBalance">$0.00</span></p>
                     </div>
                     <div id="daily-metrics" class="card-subsection">
@@ -146,6 +147,25 @@
                                 <th>Charts</th>
                                 <th>Notes</th>
                                 <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="summary-section card">
+                <h2>Daily Summary</h2>
+                <div class="table-wrapper">
+                    <table id="dailySummaryLog">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Day</th>
+                                <th>No. of Trades</th>
+                                <th>Win Rate (%)</th>
+                                <th>Net P/L ($)</th>
+                                <th>P/L %</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
@@ -254,7 +274,7 @@
     </div>
 
     <div id="toastContainer"></div>
-    <div id="pdf-report-container" style="display: none;"></div>
+    <div id="pdf-report-container"></div>
     <script src="script.js"></script>
 </body>
 </html>

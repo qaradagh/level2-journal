@@ -46,6 +46,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const overallPLPercentageEl = document.getElementById('overallPLPercentage');
     const buyWinRateEl = document.getElementById('buyWinRate');
     const sellWinRateEl = document.getElementById('sellWinRate');
+    const initialBalanceDisplayEl = document.getElementById('initialBalanceDisplay');
+    const dailySummaryLogBody = document.querySelector('#dailySummaryLog tbody');
 
 
     const ctx = document.getElementById('equityChart').getContext('2d');
@@ -107,7 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
             modalAfterImg.src = trade.afterImage;
 
             const initialBalanceForTrade = trade.id > 1 ? state.equityCurve[trade.id - 2] : state.initialBalance;
-            const percentagePL = (trade.plAmount / initialBalanceForTrade) * 100;
+            const percentagePL = (trade.plAmount / state.initialBalance * (state.riskPercentage / 100)) * 100;
             const outcomeClass = trade.plAmount > 0 ? 'outcome-win' : 'outcome-loss';
 
             modalTradeDetailsEl.innerHTML = `
@@ -200,6 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function toggleTheme() {
+        document.documentElement.removeAttribute('style');
         const currentTheme = document.body.classList.contains('light-mode') ? 'light' : 'dark';
         const newTheme = currentTheme === 'light' ? 'dark' : 'light';
         localStorage.setItem('theme', newTheme);
@@ -305,7 +308,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const recoveryOutcome = recoveryOutcomeEl.value;
             const recoveryType = firstLeg.type === 'buy' ? 'sell' : 'buy';
-            const secondLeg = { ...commonDetails, type: recoveryType, outcome: recoveryOutcome, isRecoveryAttempt: true, groupId };
+            const secondLeg = { ...commonDetails, type: recoveryType, outcome: recoveryOutcome, isRecoveryAttempt: true, groupId, beforeImage: null, afterImage: null };
             state.trades.push(secondLeg);
             showToast('Recovery trade (2 legs) added!');
         }
@@ -324,6 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderTradeLog();
         calculateMetrics();
         renderDailyWinRates();
+        renderDailySummary();
         updateChart();
     }
     
@@ -337,6 +341,18 @@ document.addEventListener('DOMContentLoaded', () => {
             if(trade.groupId) {
                 row.classList.add('recovery-pair');
             }
+
+            let chartCellContent = 'N/A';
+            if (trade.beforeImage && trade.afterImage) {
+                chartCellContent = 'Yes';
+            } else if (trade.isRecoveryAttempt) {
+                const parentTrade = state.trades.find(t => t.groupId === trade.groupId && !t.isRecoveryAttempt);
+                if (parentTrade) {
+                    chartCellContent = `See #${parentTrade.id}`;
+                }
+            }
+
+
             row.innerHTML = `
                 <td>${trade.id}</td>
                 <td>${trade.date}</td>
@@ -347,7 +363,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td class="${outcomeClass}">${trade.finalOutcome}</td>
                 <td class="${outcomeClass}">${trade.plAmount.toFixed(2)}</td>
                 <td>${trade.newBalance.toFixed(2)}</td>
-                <td>${trade.beforeImage && trade.afterImage ? 'Yes' : 'No'}</td>
+                <td>${chartCellContent}</td>
                 <td>${trade.notes || 'N/A'}</td>
                 <td class="actions-cell">
                     <button class="action-btn edit" title="Edit Trade">
@@ -491,6 +507,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const numTrades = state.trades.length;
         const safeInitialBalance = state.initialBalance || 1;
         
+        initialBalanceDisplayEl.textContent = (state.initialBalance || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+
         if (numTrades === 0) {
             totalTradesEl.textContent = '0';
             winRateEl.textContent = 'N/A';
@@ -544,25 +562,101 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     function renderDailyWinRates() {
-        dailyWinRateContainerEl.innerHTML = '';
+        dailyWinRateContainerEl.innerHTML = ''; 
         const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
         const dailyStats = daysOfWeek.reduce((acc, day) => ({ ...acc, [day]: { wins: 0, total: 0 } }), {});
+
         state.trades.forEach(trade => {
             if (dailyStats[trade.day]) { 
                 dailyStats[trade.day].total++; 
                 if (trade.plAmount > 0) dailyStats[trade.day].wins++; 
             }
         });
+
+        const table = document.createElement('table');
+        table.className = 'daily-summary-table';
+        const thead = document.createElement('thead');
+        const tbody = document.createElement('tbody');
+
+        let headerHtml = '<tr>';
+        daysOfWeek.forEach(day => {
+            headerHtml += `<th>${day.substring(0, 3).toUpperCase()}</th>`;
+        });
+        headerHtml += '</tr>';
+        thead.innerHTML = headerHtml;
+
+        let bodyHtml = '<tr>';
         daysOfWeek.forEach(day => {
             const stats = dailyStats[day];
             const winRate = stats.total > 0 ? (stats.wins / stats.total) * 100 : 0;
             const rateColor = winRate >= 50 ? 'var(--green)' : 'var(--red)';
-            const dayEl = document.createElement('div');
-            dayEl.classList.add('day-stat');
-            dayEl.innerHTML = `<div class="day-name">${day}</div><div class="day-rate" style="color: ${stats.total > 0 ? rateColor : 'var(--text-secondary-color)'}">${stats.total > 0 ? winRate.toFixed(1) + '%' : 'N/A'}</div><div class="day-count" style="font-size: 0.8em; color: var(--text-secondary-color);">${stats.wins}/${stats.total}</div>`;
-            dailyWinRateContainerEl.appendChild(dayEl);
+            
+            if (stats.total > 0) {
+                bodyHtml += `<td><span style="color: ${rateColor};">${winRate.toFixed(1)}%</span><br><small style="color: var(--text-secondary-color);">${stats.wins}/${stats.total}</small></td>`;
+            } else {
+                bodyHtml += `<td>N/A</td>`;
+            }
+        });
+        bodyHtml += '</tr>';
+        tbody.innerHTML = bodyHtml;
+
+        table.appendChild(thead);
+        table.appendChild(tbody);
+        dailyWinRateContainerEl.appendChild(table);
+    }
+    
+    function calculateDailySummary() {
+        if (state.trades.length === 0) return [];
+
+        const dailyGroups = {};
+        state.trades.forEach((trade, index) => {
+            const date = trade.date;
+            if (!dailyGroups[date]) {
+                const previousDayIndex = state.trades.findIndex(t => t.date === date) - 1;
+                const startingBalance = previousDayIndex < 0 ? state.initialBalance : state.trades[previousDayIndex].newBalance;
+                dailyGroups[date] = {
+                    date: date,
+                    day: trade.day,
+                    tradeCount: 0,
+                    wins: 0,
+                    netPL: 0,
+                    startingBalance: startingBalance,
+                };
+            }
+            dailyGroups[date].tradeCount++;
+            dailyGroups[date].netPL += trade.plAmount;
+            if (trade.plAmount > 0) {
+                dailyGroups[date].wins++;
+            }
+        });
+
+        return Object.values(dailyGroups).map(day => {
+            const winRate = day.tradeCount > 0 ? (day.wins / day.tradeCount) * 100 : 0;
+            const plPercentage = day.startingBalance > 0 ? (day.netPL / day.startingBalance) * 100 : 0;
+            return { ...day, winRate, plPercentage };
+        }).sort((a, b) => new Date(a.date) - new Date(b.date));
+    }
+
+    function renderDailySummary() {
+        const summaryData = calculateDailySummary();
+        dailySummaryLogBody.innerHTML = '';
+
+        summaryData.forEach(data => {
+            const row = document.createElement('tr');
+            const netPLClass = data.netPL > 0 ? 'outcome-win' : (data.netPL < 0 ? 'outcome-loss' : '');
+            
+            row.innerHTML = `
+                <td>${data.date}</td>
+                <td>${data.day}</td>
+                <td>${data.tradeCount}</td>
+                <td>${data.winRate.toFixed(1)}%</td>
+                <td class="${netPLClass}">${data.netPL.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}</td>
+                <td class="${netPLClass}">${data.plPercentage.toFixed(2)}%</td>
+            `;
+            dailySummaryLogBody.appendChild(row);
         });
     }
+
 
     function updateChart() {
         const equityData = state.equityCurve;
@@ -660,84 +754,138 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF('p', 'mm', 'a4');
         const reportContainer = document.getElementById('pdf-report-container');
         const isLightMode = document.body.classList.contains('light-mode');
-        
-        if (!isLightMode) {
-            document.body.classList.add('light-mode');
-        }
+        const pdfCreationDate = new Date().toLocaleDateString();
 
         showToast('Generating PDF Report... Please wait.', 'info');
 
-        let reportHTML = `
+        if (!isLightMode) document.body.classList.add('light-mode');
+
+        const startDate = state.trades[0]?.date || 'N/A';
+        const endDate = state.trades[state.trades.length - 1]?.date || 'N/A';
+        const marginTop = 7.5;
+        const marginHorizontal = 15;
+        const usableWidth = 210 - (marginHorizontal * 2);
+
+        let summaryHtml = `
+            <style>
+                .pdf-page { padding: ${marginTop}mm ${marginHorizontal}mm; color: #1c1e21; font-family: sans-serif; width: 210mm; background: #fff; box-sizing: border-box; }
+                h1, h2 { margin-top: 0; margin-bottom: 10px; border-bottom: 1px solid #dce1e4; padding-bottom: 5px; color: #000; }
+                h1 { text-align: center; }
+                .report-meta { text-align: center; color: #65676b; margin-bottom: 20px; font-size: 12px; line-height: 1.5; }
+                .pdf-metrics p { display: flex; justify-content: space-between; padding: 8px 0; margin: 0; font-size: 14px; border-bottom: 1px solid #eee; }
+                .pdf-metrics span { font-weight: bold; }
+                .equity-chart-img { max-width: 100%; border: 1px solid #dce1e4; margin-top: 10px; }
+                .positive { color: #28a745 !important; } .negative { color: #dc3545 !important; }
+            </style>
             <div class="pdf-page">
                 <h1>Backtesting Report</h1>
-                <p class="report-date">Generated on: ${new Date().toLocaleDateString()}</p>
-                
-                <h2>Performance Summary</h2>
-                <div class="pdf-metrics">
-                    ${document.getElementById('metrics').innerHTML}
+                <div class="report-meta">
+                    <p><strong>Symbol:</strong> US30 | <strong>Period:</strong> ${startDate} to ${endDate} | <strong>Prepared by:</strong> Masiha</p>
+                    <p>Generated on: ${pdfCreationDate}</p>
                 </div>
-                
+                <h2>Performance Summary</h2>
+                <div class="pdf-metrics">${document.getElementById('metrics').innerHTML}</div>
                 <h2>Equity Curve</h2>
                 <img src="${equityChart.toBase64Image()}" class="equity-chart-img" />
-
-                <h2>Trade Log</h2>
             </div>
         `;
+        reportContainer.innerHTML = summaryHtml;
+        const summaryCanvas = await html2canvas(reportContainer.querySelector('.pdf-page'), { scale: 3, useCORS: true });
+        const summaryImgData = summaryCanvas.toDataURL('image/jpeg', 0.9);
+        const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+        const summaryImgProps = pdf.getImageProperties(summaryImgData);
+        const summaryPdfHeight = (summaryImgProps.height * usableWidth) / summaryImgProps.width;
+        pdf.addImage(summaryImgData, 'JPEG', marginHorizontal, marginTop, usableWidth, summaryPdfHeight);
 
-        state.trades.forEach(trade => {
-            reportHTML += `
-            <div class="pdf-page trade-card-pdf">
-                 <h3>Trade #${trade.id} - ${trade.date}</h3>
-                 <div class="trade-details-pdf">
-                    <p><strong>Type:</strong> ${trade.type}</p>
-                    <p><strong>Outcome:</strong> ${trade.finalOutcome}</p>
-                    <p><strong>P/L:</strong> $${trade.plAmount.toFixed(2)}</p>
-                 </div>
-                 <div class="image-gallery-pdf">
-                    ${trade.beforeImage ? `<div><h4>Before</h4><img src="${trade.beforeImage}"/></div>` : ''}
-                    ${trade.afterImage ? `<div><h4>After</h4><img src="${trade.afterImage}"/></div>` : ''}
-                 </div>
-                 <p class="notes-pdf"><strong>Notes:</strong> ${trade.notes || 'N/A'}</p>
-            </div>
-            `;
-        });
-        
-        reportContainer.innerHTML = reportHTML;
-        reportContainer.style.display = 'block';
-
-        const canvas = await html2canvas(reportContainer, { 
-            scale: 2,
-            useCORS: true,
-            backgroundColor: isLightMode ? '#f0f2f5' : '#ffffff'
-        });
-
-        const imgData = canvas.toDataURL('image/png');
-        const imgProps = pdf.getImageProperties(imgData);
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-        let heightLeft = pdfHeight;
-        let position = 0;
-
-        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
-        heightLeft -= pdf.internal.pageSize.getHeight();
-
-        while (heightLeft >= 0) {
-            position = heightLeft - pdfHeight;
+        let i = 0;
+        while (i < state.trades.length) {
+            const trade = state.trades[i];
+            if (trade.isRecoveryAttempt) { i++; continue; } 
+            
             pdf.addPage();
-            pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
-            heightLeft -= pdf.internal.pageSize.getHeight();
+            
+            let tradeHtml;
+            let images = { before: trade.beforeImage, after: trade.afterImage };
+            
+            if (trade.groupId) {
+                const secondLeg = state.trades.find(t => t.groupId === trade.groupId && t.isRecoveryAttempt);
+                tradeHtml = `
+                    <h3>Recovery Trade Event: #${trade.id} & #${secondLeg.id} - ${trade.date}</h3>
+                    <div class="trade-details-pdf">
+                        <p><strong>Initial Type:</strong> ${trade.type.charAt(0).toUpperCase() + trade.type.slice(1)}</p>
+                        <p><strong>Stop Loss:</strong> ${trade.stopLossPips} pips</p>
+                        <p><strong>Breakout:</strong> ${trade.breakoutPips} pips</p>
+                    </div>
+                    <div class="trade-details-pdf">
+                        <p><strong>Trade 1 Outcome:</strong> <span class="negative">${trade.finalOutcome}</span></p>
+                        <p><strong>Trade 2 Outcome:</strong> <span class="${secondLeg.plAmount > 0 ? 'positive' : 'negative'}">${secondLeg.finalOutcome}</span></p>
+                        <p><strong>Net P/L:</strong> <span class="${(trade.plAmount + secondLeg.plAmount) > 0 ? 'positive' : 'negative'}">$${(trade.plAmount + secondLeg.plAmount).toFixed(2)}</span></p>
+                    </div>
+                `;
+                i += 2; 
+            } else { 
+                tradeHtml = `
+                    <h3>Trade #${trade.id} - ${trade.date} (${trade.day})</h3>
+                    <div class="trade-details-pdf">
+                        <p><strong>Type:</strong> ${trade.type.charAt(0).toUpperCase() + trade.type.slice(1)}</p>
+                        <p><strong>Stop Loss:</strong> ${trade.stopLossPips} pips</p>
+                        <p><strong>Breakout:</strong> ${trade.breakoutPips} pips</p>
+                        <p><strong>Outcome:</strong> <span class="${trade.plAmount > 0 ? 'positive' : 'negative'}">${trade.finalOutcome}</span></p>
+                        <p><strong>P/L:</strong> <span class="${trade.plAmount > 0 ? 'positive' : 'negative'}">$${trade.plAmount.toFixed(2)}</span></p>
+                    </div>
+                `;
+                i++;
+            }
+
+            let fullPageHtml = `
+                <style>
+                    .pdf-page { padding: ${marginTop}mm ${marginHorizontal}mm; color: #1c1e21; font-family: sans-serif; width: 210mm; background: #fff; box-sizing: border-box; }
+                    h3, h4 { margin-top: 0; margin-bottom: 10px; color: #000; }
+                    h3 { border-bottom: 1px solid #dce1e4; padding-bottom: 5px; }
+                    .trade-details-pdf { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px; font-size: 14px; }
+                    .image-gallery-pdf { display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; }
+                    .image-gallery-pdf div { text-align: center; }
+                    .image-gallery-pdf img { max-width: 100%; border-radius: 4px; border: 1px solid #dce1e4; }
+                    .notes-pdf { font-size: 14px; white-space: pre-wrap; word-wrap: break-word; background: #f0f2f5; padding: 10px; border-radius: 4px; min-height: 40px; }
+                    .positive { color: #28a745; } .negative { color: #dc3545; }
+                </style>
+                <div class="pdf-page">
+                    ${tradeHtml}
+                    <div class="image-gallery-pdf">
+                        ${images.before ? `<div><h4>Before</h4><img src="${images.before}"/></div>` : ''}
+                        ${images.after ? `<div><h4>After</h4><img src="${images.after}"/></div>` : ''}
+                    </div>
+                    <p class="notes-pdf"><strong>Notes:</strong> ${trade.notes || 'N/A'}</p>
+                </div>
+            `;
+            
+            reportContainer.innerHTML = fullPageHtml;
+            const tradeCanvas = await html2canvas(reportContainer.querySelector('.pdf-page'), { scale: 3, useCORS: true });
+            const tradeImgData = tradeCanvas.toDataURL('image/jpeg', 0.9);
+            const tradeImgProps = pdf.getImageProperties(tradeImgData);
+            const tradePdfHeight = (tradeImgProps.height * usableWidth) / tradeImgProps.width;
+            pdf.addImage(tradeImgData, 'JPEG', marginHorizontal, marginTop, usableWidth, tradePdfHeight);
+        }
+        
+        const pageCount = pdf.internal.getNumberOfPages();
+        for(let j = 1; j <= pageCount; j++) {
+            pdf.setPage(j);
+            pdf.setFontSize(8);
+            pdf.setTextColor(150);
+            pdf.text(
+                'Page ' + String(j) + ' of ' + String(pageCount),
+                pdf.internal.pageSize.getWidth() - marginHorizontal, 
+                pdf.internal.pageSize.getHeight() - 10, 
+                { align: 'right' }
+            );
         }
 
         pdf.save(`level2-journal-report-${new Date().toISOString().slice(0, 10)}.pdf`);
         
-        reportContainer.style.display = 'none';
         reportContainer.innerHTML = '';
-        if (!isLightMode) {
-            document.body.classList.remove('light-mode');
-        }
+        if (!isLightMode) document.body.classList.remove('light-mode');
         showToast('PDF report generated successfully!');
     }
 
@@ -796,36 +944,55 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
 
-        state.trades.forEach(trade => {
-            const outcomeClass = trade.plAmount > 0 ? 'outcome-win' : 'outcome-loss';
-            const initialBalanceForTrade = trade.id > 1 ? state.equityCurve[trade.id - 2] : state.initialBalance;
-            const percentagePL = (trade.plAmount / initialBalanceForTrade) * 100;
+        let i = 0;
+        while (i < state.trades.length) {
+            const trade = state.trades[i];
+            let cardHtml = '';
+            
+            if (trade.groupId && !trade.isRecoveryAttempt) {
+                const secondLeg = state.trades.find(t => t.groupId === trade.groupId && t.isRecoveryAttempt);
+                const netPl = trade.plAmount + (secondLeg?.plAmount || 0);
+                const netPlClass = netPl > 0 ? 'outcome-win' : 'outcome-loss';
+                
+                cardHtml = `
+                <div class="trade-card">
+                    <div class="trade-header">
+                        <h2>Recovery Event: #${trade.id} & #${secondLeg.id} (${trade.date})</h2>
+                        <div class="trade-details">
+                            <span class="pips-info">SL: ${trade.stopLossPips}p | Breakout: ${trade.breakoutPips}p</span>
+                            <span class="outcome ${netPlClass}">Net P/L: $${netPl.toFixed(2)}</span>
+                        </div>
+                    </div>
+                    <div class="image-gallery">
+                        <div class="image-container"><h3>Before</h3><img src="${trade.beforeImage || ''}" class="lightbox-image"></div>
+                        <div class="image-container"><h3>After</h3><img src="${trade.afterImage || ''}" class="lightbox-image"></div>
+                    </div>
+                </div>`;
+                i += 2; 
+            } else if (!trade.groupId) {
+                const outcomeClass = trade.plAmount > 0 ? 'outcome-win' : 'outcome-loss';
+                const percentagePL = (trade.plAmount / (trade.id > 1 ? state.equityCurve[trade.id - 2] : state.initialBalance)) * 100;
+                cardHtml = `
+                <div class="trade-card">
+                    <div class="trade-header">
+                        <h2>Trade #${trade.id} (${trade.date})</h2>
+                        <div class="trade-details">
+                            <span class="pips-info">SL: ${trade.stopLossPips}p | Breakout: ${trade.breakoutPips}p</span>
+                            <span class="outcome ${outcomeClass}">${trade.finalOutcome} (${percentagePL.toFixed(2)}%)</span>
+                        </div>
+                    </div>
+                    <div class="image-gallery">
+                        <div class="image-container"><h3>Before</h3><img src="${trade.beforeImage || ''}" class="lightbox-image"></div>
+                        <div class="image-container"><h3>After</h3><img src="${trade.afterImage || ''}" class="lightbox-image"></div>
+                    </div>
+                </div>`;
+                i++;
+            } else {
+                i++;
+            }
+            reportHTML += cardHtml;
+        }
 
-            reportHTML += `
-            <div class="trade-card">
-                <div class="trade-header">
-                    <h2>Trade #${trade.id} (${trade.date})</h2>
-                </div>
-                <div class="image-gallery">
-                    <div class="image-container">
-                        <div class="image-header before-header">
-                           <h3>Before</h3>
-                        </div>
-                        <img src="${trade.beforeImage || ''}" alt="Before Chart" class="lightbox-image">
-                    </div>
-                    <div class="image-container">
-                        <div class="image-header">
-                            <h3>After</h3>
-                            <div class="trade-details">
-                                <span class="pips-info">SL: ${trade.stopLossPips}p | Breakout: ${trade.breakoutPips}p</span>
-                                <span class="outcome ${outcomeClass}">${trade.finalOutcome} (${percentagePL.toFixed(2)}%)</span>
-                            </div>
-                        </div>
-                        <img src="${trade.afterImage || ''}" alt="After Chart" class="lightbox-image">
-                    </div>
-                </div>
-            </div>`;
-        });
         
         reportHTML += `
             <div id="lightbox">
@@ -840,7 +1007,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const prevButton = document.getElementById('lightbox-prev');
                 const nextButton = document.getElementById('lightbox-next');
                 const closeButton = document.querySelector('.lightbox-close');
-                const images = document.querySelectorAll('.image-image');
+                const images = document.querySelectorAll('.lightbox-image');
                 let currentIndex = 0;
 
                 function showImage(index) {
